@@ -70,5 +70,5 @@ if __name__ == "__main__":
     labels = os.listdir(LABEL_PATH)
     for l in labels:
         convert_one_label(l)
-    print(labels)
+
 
