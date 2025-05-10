@@ -4,6 +4,16 @@ import os
 LABEL_PATH = "./Dataset/raw/"
 OUTPUT_PATH = "./Dataset/out/"
 
+
+def count_tools(polygon_number,j,data_hash,k):
+    count = 0
+    polygon_number = len(j[0]['data_units'][data_hash]['labels'][k]['objects'])
+    for i in range(polygon_number):
+        polygon_name = j[0]['data_units'][data_hash]['labels'][k]['objects'][i]['name']
+        if polygon_name == "Instrument Shaft Lavel":
+            count += 1
+    return count
+
 def convert_one_label(label : json):
     j = json.load(open(LABEL_PATH + label))
     # print(j[0])
@@ -19,14 +29,21 @@ def convert_one_label(label : json):
         # print(polygon_number)
         for i in range(polygon_number):
             key_dict = dict()
-            polygon_name = j[0]['data_units'][data_hash]['labels'][k]['objects'][i]['name']
+
+            tools_number = count_tools(polygon_number, j, data_hash, k)
             
+            polygon_name = j[0]['data_units'][data_hash]['labels'][k]['objects'][i]['name']
+        
+            
+            # print(polygon_name)
             if polygon_name != "Instrument Shaft Lavel" and polygon_name != "No Interaction":
-                # print(polygon_name)
                 key_dict['is_tti'] = 1
                 object_hash = j[0]['data_units'][data_hash]['labels'][k]['objects'][i]['objectHash']
                 interaction_type = None
                 interaction_tool = None
+                print(object_hash)
+                print(j[0]['object_answers'][object_hash])
+                # print(j[0]['object_answers'][object_hash])
                 if len(j[0]['object_answers'][object_hash]['classifications']) > 0:
                     interaction_type = j[0]['object_answers'][object_hash]['classifications'][0]['answers'][0]['name']
                     interaction_tool = j[0]['object_answers'][object_hash]['classifications'][1]['answers'][0]['name']
