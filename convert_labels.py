@@ -5,7 +5,7 @@ LABEL_PATH = "./Dataset/labels/"
 OUTPUT_PATH = "./Dataset/out/"
 
 
-def convert_one_label(label : json):
+def convert_one_label(label : json, all_interaction_types, all_interaction_tools):
     j = json.load(open(LABEL_PATH + label))
     file_name = j[0]['data_title']
     data_hash = j[0]['data_hash']
@@ -32,6 +32,13 @@ def convert_one_label(label : json):
                         interaction_tool = j[0]['object_answers'][object_hash]['classifications'][1]['answers'][0]['name']
                 key_dict['interaction_type'] = interaction_type
                 key_dict['interaction_tool'] = interaction_tool
+
+                if interaction_type is not None:
+                    all_interaction_types.add(interaction_type)
+                if interaction_tool is not None:
+                    all_interaction_tools.add(interaction_tool)
+
+
                 # print(j[0]['data_units'][data_hash]['labels'][k]['objects'][i])
                 key_dict['tti_polygon'] = j[0]['data_units'][data_hash]['labels'][k]['objects'][i]['polygon']
             
@@ -62,6 +69,14 @@ def convert_one_label(label : json):
     
     with open(OUTPUT_PATH+file_name[:-4]+'.json','w') as file:
         json.dump(to_write,file,indent=2)
+
+    with open('interaction_types.txt', 'w', encoding='utf-8') as f_types:
+        for t in all_interaction_types:
+            f_types.write(f"{t}\n")
+
+    with open('interaction_tools.txt', 'w', encoding='utf-8') as f_tools:
+        for tool in all_interaction_tools:
+            f_tools.write(f"{tool}\n")
     
 
 
@@ -69,10 +84,12 @@ if __name__ == "__main__":
     labels = os.listdir(LABEL_PATH)
     total_labels = len(labels)
     i = 1
+    all_interaction_types = set()
+    all_interaction_tools = set()
     for l in labels:
         print(f"Processing: {i}/{total_labels}")
         # print(l)
-        convert_one_label(l)
+        convert_one_label(l, all_interaction_types, all_interaction_tools)
         i+=1
 
 
