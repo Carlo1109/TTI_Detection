@@ -361,6 +361,8 @@ for video in videos:
         frame_indices = [int(idx) for idx in frame_indices if len(data['labels'][idx]) != 0]
 
     for idx in frame_indices:
+        if int(idx) > 150:
+            continue
         frame = _load_frame(cap, idx)
         out_img = os.path.join(file_path, 'dataset', 'images', 'train',f'video{i:04d}_frame{idx:04d}.png')
         frame.save(out_img)
