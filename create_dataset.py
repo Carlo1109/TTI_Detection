@@ -8,6 +8,8 @@ import json
 from torchvision import transforms
 from PIL import Image
 import re
+import random
+import shutil
 
 
 # Dataset organization:
@@ -323,92 +325,164 @@ class TTIDatasetFromJSON(Dataset):
 
 
 """CODE TO CREATE THE DATASET"""
-file_path   = 'Dataset'
-videos_path = os.path.join(file_path, 'LC 5 sec clips 30fps')
-json_folder = os.path.join(file_path, 'out')
 
-def normalize(name: str) -> str:
-    return re.sub(r'[^A-Za-z0-9]', '', name).lower()
+def create_dataset():
+    file_path   = 'Dataset'
+    videos_path = os.path.join(file_path, 'LC 5 sec clips 30fps')
+    json_folder = os.path.join(file_path, 'out')
 
-i = 1
-videos = os.listdir(videos_path)
+    def normalize(name: str) -> str:
+        return re.sub(r'[^A-Za-z0-9]', '', name).lower()
 
-for video in videos:
-    print(f"Processing video {i}/{len(videos)}: {video}")
+    i = 1
+    videos = os.listdir(videos_path)
 
-    cap, frame_count = _load_video(os.path.join(videos_path, video))
+    for video in videos:
+        print(f"Processing video {i}/{len(videos)}: {video}")
+
+        cap, frame_count = _load_video(os.path.join(videos_path, video))
 
 
-    base_video = os.path.splitext(video)[0]
-    key_video  = normalize(base_video)
+        base_video = os.path.splitext(video)[0]
+        key_video  = normalize(base_video)
 
-    matched_json = None
-    for fname in os.listdir(json_folder):
-        name_no_ext = os.path.splitext(fname)[0]
-        if normalize(name_no_ext) == key_video:
-            matched_json = os.path.join(json_folder, fname)
-            break
+        matched_json = None
+        for fname in os.listdir(json_folder):
+            name_no_ext = os.path.splitext(fname)[0]
+            if normalize(name_no_ext) == key_video:
+                matched_json = os.path.join(json_folder, fname)
+                break
 
-    if not matched_json:
-        print(f"[WARNING] No JSON file forr «{video}». Skipped")
-        i += 1
-        continue
-
-    
-    with open(matched_json, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-        frame_indices = list(data['labels'].keys())
-        frame_indices = [int(idx) for idx in frame_indices if len(data['labels'][idx]) != 0]
-
-    for idx in frame_indices:
-        if int(idx) > 150:
+        if not matched_json:
+            print(f"[WARNING] No JSON file forr «{video}». Skipped")
+            i += 1
             continue
-        frame = _load_frame(cap, idx)
-        out_img = os.path.join(file_path, 'dataset', 'images', 'train',f'video{i:04d}_frame{idx:04d}.png')
-        frame.save(out_img)
-        print(f"Saved {out_img}")
 
         
-        if 'is_tti' in data['labels'][str(idx)][0].keys():
-            is_tti = data['labels'][str(idx)][0]['is_tti']
+        with open(matched_json, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            frame_indices = list(data['labels'].keys())
+            frame_indices = [int(idx) for idx in frame_indices if len(data['labels'][idx]) != 0]
 
-            if int(is_tti) == 1:
-                interaction_type = to_tti_id(data['labels'][str(idx)][0]['interaction_type'])
-            else:
-                interaction_type = '0'
-
-            polygon = data['labels'][str(idx)][0]['tti_polygon']
-
-            to_write = ''
-            to_write += str(is_tti) + ' ' + str(interaction_type)
-            
-            with open(file_path+'/dataset/tti_labels/train/'+ f'video{i:04d}_frame{idx:04d}.txt', 'w', encoding='utf-8') as f:
-                for vertex in polygon.keys():
-                    x = data['labels'][str(idx)][0]['tti_polygon'][vertex]['x']
-                    y = data['labels'][str(idx)][0]['tti_polygon'][vertex]['y']
-                    to_write += ' ' + str(x) + ' '+ str(y)
-                f.write(to_write)
-        else:
-            entries = data['labels'][str(idx)]
-
-            for e in entries:
-              if 'instrument_type' in e:
-                  inst_entry = e
-                  break
-            else:
+        for idx in frame_indices:
+            if int(idx) > 150:
                 continue
+            frame = _load_frame(cap, idx)
+            out_img = os.path.join(file_path, 'dataset', 'images', 'train',f'video{i:04d}_frame{idx:04d}.png')
+            frame.save(out_img)
+            print(f"Saved {out_img}")
 
-            tool_type = to_tool_id(inst_entry['instrument_type'])
-            instrument_polygon = inst_entry['instrument_polygon']
+            
+            if 'is_tti' in data['labels'][str(idx)][0].keys():
+                is_tti = data['labels'][str(idx)][0]['is_tti']
 
-            to_write = ''
-            to_write += str(0) + ' ' + str(tool_type)
+                if int(is_tti) == 1:
+                    interaction_type = to_tti_id(data['labels'][str(idx)][0]['interaction_type'])
+                else:
+                    interaction_type = '0'
 
-            with open(file_path+'/dataset/instrument_labels/train/'+ f'video{i:04d}_frame{idx:04d}.txt', 'w', encoding='utf-8') as f:
-                for vertex in instrument_polygon.keys():
-                    x = inst_entry['instrument_polygon'][vertex]['x']
-                    y = inst_entry['instrument_polygon'][vertex]['y']
-                    to_write += ' ' + str(x) + ' '+ str(y)
-                f.write(to_write)
+                polygon = data['labels'][str(idx)][0]['tti_polygon']
 
-    i += 1
+                to_write = ''
+                to_write += str(is_tti) + ' ' + str(interaction_type)
+                
+                with open(file_path+'/dataset/tti_labels/train/'+ f'video{i:04d}_frame{idx:04d}.txt', 'w', encoding='utf-8') as f:
+                    for vertex in polygon.keys():
+                        x = data['labels'][str(idx)][0]['tti_polygon'][vertex]['x']
+                        y = data['labels'][str(idx)][0]['tti_polygon'][vertex]['y']
+                        to_write += ' ' + str(x) + ' '+ str(y)
+                    f.write(to_write)
+            else:
+                entries = data['labels'][str(idx)]
+
+                for e in entries:
+                    if 'instrument_type' in e:
+                        inst_entry = e
+                        break
+                    else:
+                        continue
+
+                tool_type = to_tool_id(inst_entry['instrument_type'])
+                instrument_polygon = inst_entry['instrument_polygon']
+
+                to_write = ''
+                to_write += str(0) + ' ' + str(tool_type)
+
+                with open(file_path+'/dataset/instrument_labels/train/'+ f'video{i:04d}_frame{idx:04d}.txt', 'w', encoding='utf-8') as f:
+                    for vertex in instrument_polygon.keys():
+                        x = inst_entry['instrument_polygon'][vertex]['x']
+                        y = inst_entry['instrument_polygon'][vertex]['y']
+                        to_write += ' ' + str(x) + ' '+ str(y)
+                    f.write(to_write)
+
+        i += 1
+
+
+def move_file(fname, split):
+    base_dir    = './Dataset/dataset'
+    # image
+    src_img = os.path.join(base_dir, 'images', 'train', fname)
+    dst_img = os.path.join(base_dir, 'images', split, fname)
+    shutil.move(src_img, dst_img)
+
+    # instrument label
+    lbl = fname.replace('.png', '.txt')
+    src_lbl = os.path.join(base_dir, 'instrument_labels', 'train', lbl)
+    dst_lbl = os.path.join(base_dir, 'instrument_labels', split, lbl)
+    if os.path.exists(src_lbl):
+        shutil.move(src_lbl, dst_lbl)
+
+    # tti label
+    src_lbl2 = os.path.join(base_dir, 'tti_labels', 'train', lbl)
+    dst_lbl2 = os.path.join(base_dir, 'tti_labels', split, lbl)
+    if os.path.exists(src_lbl2):
+        shutil.move(src_lbl2, dst_lbl2)
+
+def split_dataset():
+
+    base_dir    = './Dataset/dataset'
+    folders     = ['images', 'instrument_labels', 'tti_labels']
+    splits      = ['train', 'val', 'test']
+    train_split = 0.8
+    val_split   = 0.1
+    # test_split (0.1)
+
+
+    for folder in folders:
+        for split in splits:
+            path = os.path.join(base_dir, folder, split)
+            os.makedirs(path, exist_ok=True)
+
+
+
+    img_train_dir = os.path.join(base_dir, 'images', 'train')
+    all_imgs = [f for f in os.listdir(img_train_dir) if f.lower().endswith('.png')]
+
+    # shuffle per random
+    random.seed(42)
+    random.shuffle(all_imgs)
+
+    n = len(all_imgs)
+    print("The whole dataset is composed by " + str(n) + " images")
+    n_train = int(n * train_split)
+    n_val   = int(n * val_split)
+    n_test = n - n_train - n_val
+
+    train_imgs = all_imgs[:n_train]
+    val_imgs   = all_imgs[n_train:n_train + n_val]
+    test_imgs  = all_imgs[n_train + n_val:]
+
+
+    for fname in train_imgs:
+        move_file(fname, 'train')
+    for fname in val_imgs:
+        move_file(fname, 'val')
+    for fname in test_imgs:
+        move_file(fname, 'test')
+
+    print(f"Final distribution: train={len(train_imgs)}, val={len(val_imgs)}, test={len(test_imgs)}")
+    
+    
+    
+if __name__ == "__main__":
+    split_dataset()
