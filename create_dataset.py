@@ -183,7 +183,9 @@ class TTIDatasetFromTxt(Dataset):
         self.image_dir = os.path.join(image_dir, split)
         self.label_dir = os.path.join(label_dir, split)
         self.transform = transform or T.ToTensor()
-        self.image_files = sorted([f for f in os.listdir(image_dir) if f.endswith(('.jpg', '.png'))])
+        self.image_files = sorted([f for f in os.listdir(self.image_dir) if f.endswith(('.jpg', '.png'))])
+        print(self.image_files)
+        
 
     def __len__(self):
         return len(self.image_files)
