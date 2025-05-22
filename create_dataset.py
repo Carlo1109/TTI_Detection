@@ -10,6 +10,7 @@ from PIL import Image
 import re
 import random
 import shutil
+import torchvision.transforms as T
 
 
 # Dataset organization:
@@ -136,7 +137,7 @@ def to_tool_id(name):
     if name == None:
       return 0
     name_to_id = {
-        "unknown": 0,
+        "unknown_tool": 0,
         "harmonic": 1,
         "grasper": 2,
         "grasper 2": 3,
@@ -158,17 +159,17 @@ def to_tti_id(name):
     if name == None:
       return 0
     name_to_id = {
-        "unknown": 0,
-        "other": 1,
-        "dissector": 2,
-        "cautery (hook, spatula)": 3,
-        "cut - sharp dissection": 4,
-        "retract and grab": 5,
-        "coagulation": 6,
-        "blunt dissection": 7,
-        "retract and push": 8,
-        "staple": 9,
-        "energy - sharp dissection": 10
+        "unknown_tti": 13,
+        "other": 14,
+        "dissector": 15,
+        "cautery (hook, spatula)": 16,
+        "cut - sharp dissection": 17,
+        "retract and grab": 18,
+        "coagulation": 19,
+        "blunt dissection": 20,
+        "retract and push": 21,
+        "staple": 22,
+        "energy - sharp dissection": 23
     }
     name = name.lower()
     return name_to_id[name]
@@ -184,7 +185,21 @@ class TTIDatasetFromTxt(Dataset):
         self.label_dir = os.path.join(label_dir, split)
         self.transform = transform or T.ToTensor()
         self.image_files = sorted([f for f in os.listdir(self.image_dir) if f.endswith(('.jpg', '.png'))])
-        print(self.image_files)
+        self.labels = self._build_labels()
+        
+    def _build_labels(self):
+        labels = []
+        for idx in range(len(self.image_files)):
+            sample = self.__getitem__(idx)
+            # Build the dictionary as expected by Ultralytics
+            labels.append({
+                "im_file": os.path.join(self.image_dir, self.image_files[idx]),
+                "bboxes": torch.tensor(sample["bboxes"], dtype=torch.float32),  # shape [N, 4]
+                "cls": sample["tools"].unsqueeze(-1),  # shape [N, 1]
+                "segments": [torch.tensor(p, dtype=torch.float32) for p in sample["polygons"]],  # list of [N, 2]
+                # add other keys as needed
+            })
+        return labels
         
 
     def __len__(self):
@@ -487,4 +502,5 @@ def split_dataset():
     
     
 if __name__ == "__main__":
-    split_dataset()
+    create_dataset()
+    # split_dataset()

@@ -1,0 +1,31 @@
+path: D:\Università\Magistrale\TTI_Detection\Dataset\dataset  # root directory of your dataset
+train: images/train     # path to training images
+val: images/val         # path to validation images
+names:
+#Instrument type
+  unknown_tool: 0,
+  harmonic: 1,
+  grasper: 2,
+  grasper 2: 3,
+  stapler: 4,
+  dissector: 5,
+  ligasure: 6,
+  cautery: 7,
+  grasper 3: 8,
+  bipolar: 9,
+  suction: 10,
+  scissors: 11,
+  cautery (hook, spatula): 12,
+
+#TTI type
+  13: other
+  14: dissector
+  15: cautery (hook, spatula)
+  16: cut - sharp dissection
+  17: retract and grab
+  18: coagulation
+  19: blunt dissection
+  20: retract and push
+  21: staple
+  22: energy - sharp dissection
+
