@@ -183,7 +183,9 @@ class TTIDatasetFromTxt(Dataset):
     def __init__(self, image_dir, label_dir, split='train', transform=None):
         self.image_dir = os.path.join(image_dir, split)
         self.label_dir = os.path.join(label_dir, split)
-        self.transform = transform or T.ToTensor()
+        self.transform =  transform or T.Compose([ T.Resize((640, 640)),
+                                                    T.ToTensor(),
+                                                ])
         self.image_files = sorted([f for f in os.listdir(self.image_dir) if f.endswith(('.jpg', '.png'))])
         self.labels = self._build_labels()
         
@@ -257,12 +259,13 @@ class TTIDatasetFromTxt(Dataset):
                     bboxes.append( polygon_to_bbox(polygon))
 
         return {
-            'image': image,                              # Tensor[C, H, W]
+            'img': image,                              # Tensor[C, H, W]
             'polygons': polygons,                        # List[List[[x, y], ...]]
             'tools': torch.tensor(class_ids),        # Tensor[N]
             'ttis': torch.tensor(interactions),   # Tensor[N]
             'is_tti': torch.tensor(is_tti),
-            "bboxes" : bboxes
+            "bboxes" : bboxes,
+            'batch_idx': torch.zeros(len(class_ids), dtype=torch.int64)
         }
 
 
