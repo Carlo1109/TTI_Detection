@@ -502,5 +502,5 @@ def split_dataset():
     
     
 if __name__ == "__main__":
-    create_dataset()
-    # split_dataset()
+    # create_dataset()
+    split_dataset()
