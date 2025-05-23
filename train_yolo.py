@@ -1,6 +1,6 @@
 from ultralytics.models.yolo.segment import SegmentationTrainer
 from create_dataset import TTIDatasetFromTxt
-from ultralytics_yolo.ultralytics.models import 
+from ultralytics import YOLO
 from torch.utils.data import DataLoader
 
 IMAGE_DIR = './Dataset/dataset/images'
