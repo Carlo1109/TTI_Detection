@@ -17,7 +17,8 @@ if __name__== "__main__":
     model = YOLO("yolo11n-seg.pt")
 
     
-    results = model.train(trainer=CustomSegmentationTrainer, data="dataset.yaml", epochs=3)        
+    #results = model.train(trainer=CustomSegmentationTrainer, data="dataset.yaml", epochs=3)        
+    results = model.train(data="dataset.yaml", epochs=3)
     # trainer = CustomSegmentationTrainer(overrides=args)
     # trainer.train()
 
