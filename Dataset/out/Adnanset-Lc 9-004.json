@@ -4,7 +4,7 @@
       {
         "is_tti": 0,
         "non_interaction_tool": "Cautery (Hook, Spatula)",
-        "tti_polygon": {
+        "instrument_polygon": {
           "0": {
             "x": 0.47962382445141066,
             "y": 0.36075949367088606

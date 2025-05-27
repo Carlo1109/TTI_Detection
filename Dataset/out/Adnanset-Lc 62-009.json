@@ -147,7 +147,7 @@
       {
         "is_tti": 0,
         "non_interaction_tool": "Dissector",
-        "tti_polygon": {
+        "instrument_polygon": {
           "0": {
             "x": 0.2586477987421384,
             "y": 0.4017094017094017

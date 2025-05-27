@@ -4,7 +4,7 @@
       {
         "is_tti": 0,
         "non_interaction_tool": null,
-        "tti_polygon": {
+        "instrument_polygon": {
           "0": {
             "x": 0.17554270971304434,
             "y": 0.28705297362598975

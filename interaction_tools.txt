@@ -1,11 +1,11 @@
-Harmonic
-Grasper 2
-Grasper
-Stapler
 Dissector
-Ligasure
-Cautery (Hook, Spatula)
-Grasper 3
-Bipolar
-Suction
 Scissors
+Suction
+Grasper 3
+Harmonic
+Grasper
+Bipolar
+Grasper 2
+Cautery (Hook, Spatula)
+Ligasure
+Stapler

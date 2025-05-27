@@ -1460,7 +1460,7 @@
       {
         "is_tti": 0,
         "non_interaction_tool": "Staple",
-        "tti_polygon": {
+        "instrument_polygon": {
           "0": {
             "x": 0.7360724233983287,
             "y": 0.6571729957805907

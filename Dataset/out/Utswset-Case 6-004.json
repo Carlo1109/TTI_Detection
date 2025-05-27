@@ -4,7 +4,7 @@
       {
         "is_tti": 0,
         "non_interaction_tool": "Suction",
-        "tti_polygon": {
+        "instrument_polygon": {
           "0": {
             "x": 0.6193693693693694,
             "y": 0.22083333333333333

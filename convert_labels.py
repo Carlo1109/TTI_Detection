@@ -3,7 +3,7 @@ import os
 
 LABEL_PATH = "./Dataset/labels/"
 OUTPUT_PATH = "./Dataset/out/"
-
+# log = open("log.txt", "w", encoding='utf-8')
 
 def convert_one_label(label : json, all_interaction_types, all_interaction_tools):
     j = json.load(open(LABEL_PATH + label))
@@ -12,6 +12,7 @@ def convert_one_label(label : json, all_interaction_types, all_interaction_tools
     frames = j[0]['data_units'][data_hash]['labels'].keys()
     # print(frames)
     to_write = {"labels": {}}
+    
     for k in frames:
         list_to_add = []
         
@@ -26,11 +27,18 @@ def convert_one_label(label : json, all_interaction_types, all_interaction_tools
                 object_hash = j[0]['data_units'][data_hash]['labels'][k]['objects'][i]['objectHash']
                 interaction_type = None
                 interaction_tool = None
+                # print(j[0]['object_answers'][object_hash]['classifications'])
+                
                 if len(j[0]['object_answers'][object_hash]['classifications']) > 0:
-                    interaction_type = j[0]['object_answers'][object_hash]['classifications'][0]['answers'][0]['name']
-                    if len(j[0]['object_answers'][object_hash]['classifications']) > 1:
-                        interaction_tool = j[0]['object_answers'][object_hash]['classifications'][1]['answers'][0]['name']
+                    for l in range(len(j[0]['object_answers'][object_hash]['classifications'])):
+                        if j[0]['object_answers'][object_hash]['classifications'][l]['name'] == "Instrument type":
+                            interaction_tool = j[0]['object_answers'][object_hash]['classifications'][l]['answers'][0]['name']                         
+                        elif j[0]['object_answers'][object_hash]['classifications'][l]['name'] == "Interaction type":
+                            interaction_type = j[0]['object_answers'][object_hash]['classifications'][l]['answers'][0]['name']
+                            
                 key_dict['interaction_type'] = interaction_type
+                # print(interaction_type, " --- ", label)
+                # log.write(str(interaction_type) + " --- " + label + "\n")
                 key_dict['interaction_tool'] = interaction_tool
 
                 if interaction_type is not None:
@@ -49,15 +57,18 @@ def convert_one_label(label : json, all_interaction_types, all_interaction_tools
                 if len(j[0]['object_answers'][object_hash]['classifications']) > 0:
                     non_interaction_tool = j[0]['object_answers'][object_hash]['classifications'][0]['answers'][0]['name']
                 key_dict['non_interaction_tool'] = non_interaction_tool
-                key_dict['tti_polygon'] = j[0]['data_units'][data_hash]['labels'][k]['objects'][i]['polygon']
+                key_dict['instrument_polygon'] = j[0]['data_units'][data_hash]['labels'][k]['objects'][i]['polygon']
             
             elif polygon_name == 'Instrument Shaft Lavel':
                 object_hash = j[0]['data_units'][data_hash]['labels'][k]['objects'][i]['objectHash']
                 instrument_type = None
                 if len(j[0]['object_answers'][object_hash]['classifications']) > 0:
-                    instrument_type = j[0]['object_answers'][object_hash]['classifications'][0]['answers'][0]['name']
+                    for l in range(len(j[0]['object_answers'][object_hash]['classifications'])):
+                        if j[0]['object_answers'][object_hash]['classifications'][l]['name'] == "Instrument type":
+                            instrument_type = j[0]['object_answers'][object_hash]['classifications'][l]['answers'][0]['name']
                 key_dict['instrument_polygon'] = j[0]['data_units'][data_hash]['labels'][k]['objects'][i]['polygon']
                 key_dict['instrument_type'] = instrument_type
+                
             
             
             
@@ -91,5 +102,7 @@ if __name__ == "__main__":
         # print(l)
         convert_one_label(l, all_interaction_types, all_interaction_tools)
         i+=1
+        
+    # log.close()
 
 

@@ -76,19 +76,18 @@ def to_tool_id(name):
     if name == None:
       return 0
     name_to_id = {
-        "unknown_tool": 0,
-        "harmonic": 1,
-        "grasper": 2,
-        "grasper 2": 3,
-        "stapler": 4,
-        "dissector": 5,
-        "ligasure": 6,
-        "cautery": 7,
-        "grasper 3": 8,
-        "bipolar": 9,
-        "suction": 10,
-        "scissors": 11,
-        "cautery (hook, spatula)": 12,
+        'unknown_tool': 0,
+        'dissector': 1,
+        'scissors': 2,
+        'suction': 3,
+        'grasper 3': 4,
+        'harmonic': 5,
+        'grasper': 6,
+        'bipolar': 7,
+        'grasper 2': 8,
+        'cautery (hook, spatula)': 9,
+        'ligasure': 10,
+        'stapler': 11,        
     }
     name = name.lower()
     return name_to_id[name]
@@ -96,19 +95,17 @@ def to_tool_id(name):
 
 def to_tti_id(name):
     if name == None:
-      return 0
+      return 12
     name_to_id = {
-        "unknown_tti": 13,
-        "other": 14,
-        "dissector": 15,
-        "cautery (hook, spatula)": 16,
-        "cut - sharp dissection": 17,
-        "retract and grab": 18,
-        "coagulation": 19,
-        "blunt dissection": 20,
-        "retract and push": 21,
-        "staple": 22,
-        "energy - sharp dissection": 23
+        'unknown_tti': 12,
+        'coagulation': 13,
+        'other': 14,
+        'retract and grab': 15,
+        'blunt dissection': 16,
+        'energy - sharp dissection': 17,
+        'staple': 18,
+        'retract and push': 19,
+        'cut - sharp dissection': 20,
     }
     name = name.lower()
     return name_to_id[name]
@@ -161,78 +158,84 @@ def create_dataset():
             frame = _load_frame(cap, idx)
             out_img = os.path.join(file_path, 'dataset', 'images', 'train',f'video{i:04d}_frame{idx:04d}.png')
             frame.save(out_img)
-            print(f"Saved {out_img}")
+            print(f"Saved {out_img}") 
 
+
+            to_write = ''
+            # print(len(data['labels'][str(idx)]))
             
-            if 'is_tti' in data['labels'][str(idx)][0].keys():
-                is_tti = data['labels'][str(idx)][0]['is_tti']
-
-                if int(is_tti) == 1:
-                    interaction_type = to_tti_id(data['labels'][str(idx)][0]['interaction_type'])
-                else:
-                    interaction_type = '0'
-
-                polygon = data['labels'][str(idx)][0]['tti_polygon']
-
-                to_write = ''
-                to_write += str(is_tti) + ' ' + str(interaction_type)
+            for j in range(len(data['labels'][str(idx)])):
+                current_dict = data['labels'][str(idx)][j]
                 
-                with open(file_path+'/dataset/tti_labels/train/'+ f'video{i:04d}_frame{idx:04d}.txt', 'w', encoding='utf-8') as f:
-                    for vertex in polygon.keys():
-                        x = data['labels'][str(idx)][0]['tti_polygon'][vertex]['x']
-                        y = data['labels'][str(idx)][0]['tti_polygon'][vertex]['y']
-                        to_write += ' ' + str(x) + ' '+ str(y)
-                    f.write(to_write)
-            else:
-                entries = data['labels'][str(idx)]
-
-                for e in entries:
-                    if 'instrument_type' in e:
-                        inst_entry = e
-                        break
-                    else:
-                        continue
-
-                tool_type = to_tool_id(inst_entry['instrument_type'])
-                instrument_polygon = inst_entry['instrument_polygon']
-
-                to_write = ''
-                to_write += str(0) + ' ' + str(tool_type)
-
-                with open(file_path+'/dataset/instrument_labels/train/'+ f'video{i:04d}_frame{idx:04d}.txt', 'w', encoding='utf-8') as f:
+                
+                dict_len = len(current_dict.keys())
+                if dict_len == 4:
+                    
+                    is_tti = data['labels'][str(idx)][j]['is_tti']
+                    interaction_type = to_tti_id(data['labels'][str(idx)][j]['interaction_type'])
+                    to_write += str(is_tti) + ' ' + str(interaction_type) 
+                    tti_polygon = data['labels'][str(idx)][j]['tti_polygon']
+                    
+                    for vertex in tti_polygon.keys():
+                        x = data['labels'][str(idx)][j]['tti_polygon'][vertex]['x']
+                        y = data['labels'][str(idx)][j]['tti_polygon'][vertex]['y']
+                        to_write += ' ' + str(x) + ' ' + str(y)
+                        
+                    to_write += '\n'
+                    
+                elif dict_len == 3:
+                    
+                    is_tti = data['labels'][str(idx)][j]['is_tti']
+                    non_interaction_tool = to_tool_id(data['labels'][str(idx)][j]['non_interaction_tool'])
+                    to_write += str(is_tti) + ' ' + str(non_interaction_tool)
+                    instrument_polygon = data['labels'][str(idx)][j]['instrument_polygon']
+                    
                     for vertex in instrument_polygon.keys():
-                        x = inst_entry['instrument_polygon'][vertex]['x']
-                        y = inst_entry['instrument_polygon'][vertex]['y']
+                        x = instrument_polygon[vertex]['x']
+                        y = instrument_polygon[vertex]['y']
                         to_write += ' ' + str(x) + ' '+ str(y)
-                    f.write(to_write)
+                        
+                    to_write += '\n'
+                    
+                elif dict_len == 2:
+                    instr_type = to_tool_id(data['labels'][str(idx)][j]['instrument_type'])
+                    
+                    to_write += str(0) + ' ' + str(instr_type) 
+                    instrument_polygon = data['labels'][str(idx)][j]['instrument_polygon']
+                    
+                    for vertex in instrument_polygon.keys():
+                        x = instrument_polygon[vertex]['x']
+                        y = instrument_polygon[vertex]['y']
+                        to_write += ' ' + str(x) + ' '+ str(y)
+                        
+                    to_write += '\n'
+                    
+            with open(file_path+'/dataset/labels/train/'+ f'video{i:04d}_frame{idx:04d}.txt', 'w', encoding='utf-8') as f:
+                f.write(to_write)   
 
         i += 1
 
 
 def move_file(fname, split):
     base_dir    = './Dataset/dataset'
+    
     # image
     src_img = os.path.join(base_dir, 'images', 'train', fname)
     dst_img = os.path.join(base_dir, 'images', split, fname)
     shutil.move(src_img, dst_img)
 
-    # instrument label
+    # labels
     lbl = fname.replace('.png', '.txt')
-    src_lbl = os.path.join(base_dir, 'instrument_labels', 'train', lbl)
-    dst_lbl = os.path.join(base_dir, 'instrument_labels', split, lbl)
+    src_lbl = os.path.join(base_dir, 'labels', 'train', lbl)
+    dst_lbl = os.path.join(base_dir, 'labels', split, lbl)
     if os.path.exists(src_lbl):
         shutil.move(src_lbl, dst_lbl)
 
-    # tti label
-    src_lbl2 = os.path.join(base_dir, 'tti_labels', 'train', lbl)
-    dst_lbl2 = os.path.join(base_dir, 'tti_labels', split, lbl)
-    if os.path.exists(src_lbl2):
-        shutil.move(src_lbl2, dst_lbl2)
 
 def split_dataset():
 
     base_dir    = './Dataset/dataset'
-    folders     = ['images', 'instrument_labels', 'tti_labels']
+    folders     = ['images', 'labels']
     splits      = ['train', 'val', 'test']
     train_split = 0.8
     val_split   = 0.1
@@ -243,7 +246,6 @@ def split_dataset():
         for split in splits:
             path = os.path.join(base_dir, folder, split)
             os.makedirs(path, exist_ok=True)
-
 
 
     img_train_dir = os.path.join(base_dir, 'images', 'train')
@@ -276,5 +278,5 @@ def split_dataset():
     
     
 if __name__ == "__main__":
-    # create_dataset()
-    split_dataset()
+    create_dataset()
+    # split_dataset()

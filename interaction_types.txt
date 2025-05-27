@@ -1,11 +1,8 @@
-Other
-Grasper
-Dissector
-Cautery (Hook, Spatula)
-Cut - sharp dissection
-Retract and grab
 Coagulation
+Other
+Retract and grab
 Blunt dissection
-Retract and push
-Staple
 Energy - sharp dissection
+Staple
+Retract and push
+Cut - sharp dissection

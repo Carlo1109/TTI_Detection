@@ -418,8 +418,8 @@
       {},
       {
         "is_tti": 1,
-        "interaction_type": "Cautery (Hook, Spatula)",
-        "interaction_tool": null,
+        "interaction_type": null,
+        "interaction_tool": "Cautery (Hook, Spatula)",
         "tti_polygon": {
           "0": {
             "x": 0.7959103999483369,
@@ -509,7 +509,7 @@
       {
         "is_tti": 0,
         "non_interaction_tool": "Cautery (Hook, Spatula)",
-        "tti_polygon": {
+        "instrument_polygon": {
           "0": {
             "x": 0.8188315206447424,
             "y": 0.5172578940267557

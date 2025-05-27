@@ -714,7 +714,7 @@
       {
         "is_tti": 0,
         "non_interaction_tool": "Bipolar",
-        "tti_polygon": {
+        "instrument_polygon": {
           "0": {
             "x": 0.6997616313923144,
             "y": 0.6324051660674544

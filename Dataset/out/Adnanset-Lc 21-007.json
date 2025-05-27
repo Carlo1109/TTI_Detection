@@ -1996,7 +1996,7 @@
       {
         "is_tti": 0,
         "non_interaction_tool": "Harmonic",
-        "tti_polygon": {
+        "instrument_polygon": {
           "0": {
             "x": 0.33173875344861287,
             "y": 0.7543706139406928

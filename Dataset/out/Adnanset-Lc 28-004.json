@@ -3543,8 +3543,8 @@
       {},
       {
         "is_tti": 1,
-        "interaction_type": "Grasper",
-        "interaction_tool": null,
+        "interaction_type": null,
+        "interaction_tool": "Grasper",
         "tti_polygon": {
           "0": {
             "x": 0.15214067278287463,

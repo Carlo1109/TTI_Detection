@@ -1523,7 +1523,7 @@
       {
         "is_tti": 0,
         "non_interaction_tool": "Cautery (Hook, Spatula)",
-        "tti_polygon": {
+        "instrument_polygon": {
           "0": {
             "x": 0.7237127900633398,
             "y": 0.013566346826368232
@@ -1700,7 +1700,7 @@
       {
         "is_tti": 0,
         "non_interaction_tool": "Cautery (Hook, Spatula)",
-        "tti_polygon": {
+        "instrument_polygon": {
           "0": {
             "x": 0.6845119387309886,
             "y": 0.011865601503759378
@@ -1784,7 +1784,7 @@
       {
         "is_tti": 0,
         "non_interaction_tool": "Grasper 2",
-        "tti_polygon": {
+        "instrument_polygon": {
           "0": {
             "x": 0.002995990452986723,
             "y": 0.6491942975170485

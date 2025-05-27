@@ -4739,7 +4739,7 @@
       {
         "is_tti": 0,
         "non_interaction_tool": "Grasper",
-        "tti_polygon": {
+        "instrument_polygon": {
           "0": {
             "x": 0.4101286039592145,
             "y": 0.9831571315440722

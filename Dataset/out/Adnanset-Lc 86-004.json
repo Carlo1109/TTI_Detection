@@ -1748,7 +1748,7 @@
       {
         "is_tti": 0,
         "non_interaction_tool": "Scissors",
-        "tti_polygon": {
+        "instrument_polygon": {
           "0": {
             "x": 0.7959289166570758,
             "y": 0.47160628436385493
