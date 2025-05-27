@@ -4,29 +4,27 @@ val: /kaggle/input/tti-dataset/dataset/dataset/images/val        # path to valid
 names:
 #Tool id
   0: unknown_tool
-  1: harmonic
-  2: grasper
-  3: grasper
-  4: stapler
-  5: dissector
-  6: ligasure
-  7: cautery
-  8: grasper 3
-  9: bipolar
-  10: suction
-  11: scissors
-  12: cautery (hook, spatula)
+  1: dissector
+  2: scissors
+  3: suction
+  4: grasper 3
+  5: harmonic
+  6: grasper
+  7: bipolar
+  8: grasper 2
+  9: cautery (hook, spatula)
+  10: ligasure
+  11: stapler
 
 #TTI id
-  13: unknown_tti
+  12: unknown_tti
+  13: coagulation
   14: other
-  15: dissector
-  16: cautery (hook, spatula)
-  17: cut - sharp dissection
-  18: retract and grab
-  19: coagulation
-  20: blunt dissection
-  21: retract and push
-  22: staple
-  23: energy - sharp dissection
+  15: retract and grab
+  16: blunt dissection
+  17: energy - sharp dissection
+  18: staple
+  19: retract and push
+  20: cut - sharp dissection
+
 

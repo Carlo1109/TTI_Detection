@@ -110,8 +110,9 @@ def to_tti_id(name):
         'cut - sharp dissection': 20,
     }
     name = name.lower()
-    if name not in name_to_id:
+    if name not in name_to_id.keys():
         return 12
+    
     return name_to_id[name]
 
 
@@ -282,5 +283,5 @@ def split_dataset():
     
     
 if __name__ == "__main__":
-    create_dataset()
-    # split_dataset()
+    # create_dataset()
+    split_dataset()
