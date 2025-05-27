@@ -73,8 +73,8 @@ def _load_frame(cap, frame_idx, transform = None):
 
 
 def to_tool_id(name):
-    if name == None:
-      return 0
+    if name == None :
+        return 0
     name_to_id = {
         'unknown_tool': 0,
         'dissector': 1,
@@ -90,6 +90,8 @@ def to_tool_id(name):
         'stapler': 11,        
     }
     name = name.lower()
+    if name not in name_to_id.keys():
+      return 0
     return name_to_id[name]
 
 
@@ -108,6 +110,8 @@ def to_tti_id(name):
         'cut - sharp dissection': 20,
     }
     name = name.lower()
+    if name not in name_to_id:
+        return 12
     return name_to_id[name]
 
 
