@@ -4,7 +4,8 @@ import torchvision.models as models
 import torch.nn as nn
 import numpy as np
 from ultralytics import YOLO
-
+from transformers import pipeline
+from PIL import Image
 
 
 def load_yolo_model(model_path):
@@ -48,7 +49,7 @@ def found_objects(tool_list, tti_list, classes) -> list | list:
 def parse_yolo_output(result) -> list[dict]:
     
     if len(result[0].boxes.cls) < 2 :
-        return {'class':r.boxes.cls[0] , 'mask': r.masks.data[0]}
+        return {'class':int(r.boxes.cls[0].cpu().detach().numpy()) , 'mask': r.masks.data[0].cpu().detach().numpy()}
     
     tool_list = list(range(0, 12))
     tti_list = list(range(12, 21))
@@ -59,19 +60,18 @@ def parse_yolo_output(result) -> list[dict]:
     masks = r.masks.data
     
     tool_found, tti_found = found_objects(tool_list, tti_list, classes)
-    print(tool_found)
-    print(tti_found)
+
     l = []
     
     if len(tool_found) == 0:
         for idx in tti_found:
-            l.append({'class':int(r.boxes.cls[idx].cpu().detach().numpy()) , 'mask': r.masks.data[idx]})
+            l.append({'class':int(r.boxes.cls[idx].cpu().detach().numpy()) , 'mask': r.masks.data[idx].cpu().detach().numpy()})
         return l
     
     elif len(tti_found) == 0:
 
         for idx in tool_found:
-            l.append({'class':int(r.boxes.cls[idx].cpu().detach().numpy()) , 'mask': r.masks.data[idx]})
+            l.append({'class':int(r.boxes.cls[idx].cpu().detach().numpy()) , 'mask': r.masks.data[idx].cpu().detach().numpy()})
         return l
     
     res = []
@@ -80,8 +80,8 @@ def parse_yolo_output(result) -> list[dict]:
         for idx_tool in tool_found:
             tissue_mask = masks[idx_tti].bool() & (~masks[idx_tool].bool())
             tool_mask = masks[idx_tool].bool()
-            res.append({'class': int(classes[idx_tti].cpu().detach().numpy()) , 'mask' : tissue_mask.int()})
-            res.append({'class': int(classes[idx_tool].cpu().detach().numpy()) , 'mask':  tool_mask.int()})
+            res.append({'class': int(classes[idx_tti].cpu().detach().numpy()) , 'mask' : tissue_mask.int().cpu().detach().numpy()})
+            res.append({'class': int(classes[idx_tool].cpu().detach().numpy()) , 'mask':  tool_mask.int().cpu().detach().numpy()})
             
     return res
 
@@ -100,8 +100,9 @@ def find_tool_tissue_pairs(detections: list[dict]):
 
 
 def extract_union_roi(image, tool_mask, tissue_mask, depth_map=None):
-    combined_mask = (tool_mask + tissue_mask).clip(0, 1).astype('uint8')
+    combined_mask = (tool_mask + tissue_mask).clip(0, 1).astype('uint8') #before astype
     x, y, w, h = cv2.boundingRect(combined_mask)
+
     roi = image[y:y+h, x:x+w]
 
     if depth_map is not None:
@@ -109,7 +110,6 @@ def extract_union_roi(image, tool_mask, tissue_mask, depth_map=None):
         roi = np.concatenate([roi, depth_roi[..., None]], axis=-1)  # add depth as extra channel
 
     return roi
-
 
 class ROIClassifier(nn.Module):
     def __init__(self, num_hoi_classes):
@@ -127,12 +127,18 @@ class ROIClassifier(nn.Module):
 def end_to_end_pipeline(image, yolo_model, depth_model, tti_classifier, device):
     # Step 1: YOLOv11-seg and depth estimation
     detections = yolo_inference(yolo_model, image)
-    depth_map = depth_model(image)
+    
+    # depth_map = depth_model(image)
+    depth_map = np.array(depth_model(image)["depth"])
 
     # Step 2: Pairing
     pairs = find_tool_tissue_pairs(detections)
 
+    image = cv2.imread(image,cv2.IMREAD_COLOR)
+   
+    
     tti_predictions = []
+    print(len(pairs))
     for pair in pairs:
         tool_mask = pair['tool']['mask']
         tissue_mask = pair['tissue']['mask']
@@ -161,6 +167,16 @@ def end_to_end_pipeline(image, yolo_model, depth_model, tti_classifier, device):
 if __name__ == "__main__":
     model = load_yolo_model('./runs/segment/train/weights/best.pt')
     image = './Dataset/dataset/images/test/video0014_frame0011.png'
-    pred = yolo_inference(model, image)
-    print(pred)
+    # image = Image.open(image)
+    # pred = yolo_inference(model, image)
+    
+    pipe = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
+
+    
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    tti_class = ROIClassifier(2).to(device)
+    detection , tti_predictions  = end_to_end_pipeline(image,model,pipe,tti_class,device)
+    print(detection)
+    print()
+    print(tti_predictions)
     # print(find_tool_tissue_pairs(pred))

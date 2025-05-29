@@ -1,6 +1,4 @@
 from ultralytics import YOLO
-
-
 from transformers import pipeline
 from PIL import Image 
 
@@ -8,7 +6,7 @@ if __name__ == "__main__":
    
 
     pipe = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
-    image = Image.open('./Dataset/dataset/images/test/video0008_frame0035.png')
+    image = Image.open('./Real.png')
     depth = pipe(image)["depth"]
     depth.show()
     # Image.show(depth)
