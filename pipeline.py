@@ -87,9 +87,7 @@ def parse_yolo_output(result) -> list[dict]:
 
 
 
-tool_classes = {
-    0 : 'other', 
-}
+tool_classes = list(range(0, 12))
 
 def find_tool_tissue_pairs(detections: list[dict]):
     tools = [d for d in detections if d['class'] in tool_classes]
