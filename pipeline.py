@@ -6,6 +6,7 @@ import numpy as np
 from ultralytics import YOLO
 from transformers import pipeline
 from PIL import Image
+from Model import ROIClassifier
 
 
 def load_yolo_model(model_path):
@@ -85,8 +86,6 @@ def parse_yolo_output(result) -> list[dict]:
             
     return res
 
-
-
 tool_classes = list(range(0, 12))
 
 def find_tool_tissue_pairs(detections: list[dict]):
@@ -111,18 +110,6 @@ def extract_union_roi(image, tool_mask, tissue_mask, depth_map=None):
 
     return roi
 
-class ROIClassifier(nn.Module):
-    def __init__(self, num_hoi_classes):
-        super().__init__()
-        self.backbone = models.resnet18(pretrained=True) # I would prefer efficientnet
-        self.backbone.fc = nn.Identity()
-        self.fc = nn.Linear(512, num_hoi_classes)
-
-    def forward(self, x):
-        features = self.backbone(x)
-        out = self.fc(features)
-        return out
-    
 
 def end_to_end_pipeline(image, yolo_model, depth_model, tti_classifier, device):
     # Step 1: YOLOv11-seg and depth estimation
@@ -176,7 +163,7 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     tti_class = ROIClassifier(2).to(device)
     detection , tti_predictions  = end_to_end_pipeline(image,model,pipe,tti_class,device)
-    print(detection)
+    # print(detection)
     print()
     print(tti_predictions)
     # print(find_tool_tissue_pairs(pred))
