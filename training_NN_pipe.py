@@ -172,15 +172,16 @@ def get_x_train(image_path,tool_mask,tissue_mask):
     image_roi = cv2.imread(image_path,cv2.IMREAD_COLOR)
     depth_map = np.array(depth_model(image_path)["depth"])
     roi = extract_union_roi(image_roi,tool_mask,tissue_mask,depth_map)  
-    # roi_tensor = torch.from_numpy(roi).permute(2, 0, 1).unsqueeze(0).float() / 255.0
+    roi_resized = cv2.resize(roi, (224, 224), interpolation=cv2.INTER_LINEAR)
+    roi_np = np.transpose(roi_resized, (2, 0, 1)).astype(np.float32) / 255.0
     
-    return roi
+    return roi_np
 
 if __name__ == '__main__':
     # create_train()
     x_train , y_train = create_train()
     model = ROIClassifier(2)
-    loss_fn = nn.BCEWithLogitsLoss()
+    loss_fn = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters())
     train_model(model,optimizer,loss_fn,x_train,y_train,40)
     

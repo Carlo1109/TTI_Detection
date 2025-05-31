@@ -49,13 +49,13 @@ def found_objects(tool_list, tti_list, classes) -> list | list:
 
 def parse_yolo_output(result) -> list[dict]:
     
+    r = result[0]
     if len(result[0].boxes.cls) < 2 :
-        return {'class':int(r.boxes.cls[0].cpu().detach().numpy()) , 'mask': r.masks.data[0].cpu().detach().numpy()}
+        return [{'class':int(r.boxes.cls[0].cpu().detach().numpy()) , 'mask': r.masks.data[0].cpu().detach().numpy()}]
     
     tool_list = list(range(0, 12))
     tti_list = list(range(12, 21))
 
-    r = result[0]
     
     classes = r.boxes.cls
     masks = r.masks.data
@@ -153,15 +153,14 @@ def end_to_end_pipeline(image, yolo_model, depth_model, tti_classifier, device):
 
 if __name__ == "__main__":
     model = load_yolo_model('./runs/segment/train/weights/best.pt')
-    image = './Dataset/dataset/images/test/video0014_frame0011.png'
-    # image = Image.open(image)
-    # pred = yolo_inference(model, image)
+    image = './Dataset/dataset/images/test/video0114_frame0059.png'
     
     pipe = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
 
-    
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    tti_class = ROIClassifier(2).to(device)
+    tti_class = ROIClassifier(2)
+    tti_class.load_state_dict(torch.load('ROImodel.pt',map_location=device))
+    tti_class.to(device)
     detection , tti_predictions  = end_to_end_pipeline(image,model,pipe,tti_class,device)
     # print(detection)
     print()
