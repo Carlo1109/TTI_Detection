@@ -147,7 +147,7 @@ def create_dataset():
                 break
 
         if not matched_json:
-            print(f"[WARNING] No JSON file forr «{video}». Skipped")
+            print(f"[WARNING] No JSON file for «{video}». Skipped")
             i += 1
             continue
 

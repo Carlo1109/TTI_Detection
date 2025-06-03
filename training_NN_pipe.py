@@ -8,10 +8,32 @@ from Model import ROIClassifier
 import torch
 from transformers import pipeline
 import os
+import re
+import json
 
 
-LABELS_PATH = './Dataset/dataset/labels/train/'
-IMAGES_PATH = './Dataset/dataset/images/train/'
+LABELS_PATH = './Dataset/out/'
+VIDEOS_PATH = './Dataset/LC 5 sec clips 30fps/'
+
+
+def _load_video(video_path):
+    # Load video
+    cap = cv2.VideoCapture(video_path)
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    return cap, frame_count
+
+def _load_frame(cap, frame_idx, transform = None):
+    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+    success, frame = cap.read()
+    if not success:
+        raise ValueError(f"Failed to read frame {frame_idx}")
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    #return transform(Image.fromarray(frame))
+    return Image.fromarray(frame)
+
+def normalize(name: str) -> str:
+        return re.sub(r'[^A-Za-z0-9]', '', name).lower()
+
 
 
 def parse_mask_string(mask_str, H, W):
@@ -46,11 +68,8 @@ def parse_mask_string(mask_str, H, W):
     return np.array(coords, dtype=np.int32)
 
 
-
 def extract_union_roi(image, tool_mask, tissue_mask, depth_map=None):
     H, W = image.shape[:2]
-    tool_mask = parse_mask_string(tool_mask,H,W)
-    tissue_mask = parse_mask_string(tissue_mask,H,W)
     
     polygons = [tool_mask]
     tool_mask = np.zeros((H, W), dtype=np.uint8)
@@ -72,109 +91,146 @@ def extract_union_roi(image, tool_mask, tissue_mask, depth_map=None):
 
     return roi
 
+def get_polygon(polygon):
+    to_write = ''
+    for vertex in polygon.keys():
+        x = polygon[vertex]['x']
+        y = polygon[vertex]['y']
+        to_write += ' ' + str(x) + ' ' + str(y)
+    return to_write
 
 def create_train():
     
-    images = os.listdir(IMAGES_PATH)
+    videos = os.listdir(VIDEOS_PATH)
     labels = os.listdir(LABELS_PATH)
     X_train = []
     y_train = []
-    
+
     count = 0
-    for img in images:
-        print(f"PROCESSING IMAGE {count}/{len(images)}")
-        count+=1
-        image_path = os.path.join(IMAGES_PATH,img)
-        label_name = img.replace('png','txt')
-        label_path = os.path.join(LABELS_PATH,label_name)
-        tool_classes = list(range(0, 12))
-        
-        
-        with open(label_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-            lines = [line.strip() for line in lines]
+    for video in videos:
+        print(f"Processing video {count}/{len(videos)}: {video}")
+        cap, frame_count = _load_video(os.path.join(VIDEOS_PATH, video))
 
-        if len(lines) < 2 or len(lines) == 4:
+        base_video = os.path.splitext(video)[0]
+        key_video  = normalize(base_video)
+        y_train = []
+        x_train = []
+
+
+        matched_json = None
+        for fname in os.listdir(LABELS_PATH):
+            name_no_ext = os.path.splitext(fname)[0]
+            if normalize(name_no_ext) == key_video:
+                matched_json = os.path.join(LABELS_PATH, fname)
+                break
+
+        if not matched_json:
+            print(f"[WARNING] No JSON file for «{video}». Skipped")
+            count += 1
             continue
-        
-        l = []
-            
-        
-        for line in lines:
-            is_tti = line[0]
-            cls = line[2:4]
-            d = dict()
-            
-            if is_tti == '1':
-                d['is_tti'] = 1
-                if int(cls) in tool_classes:
-                    d['class'] = 'tool'
-                    tool_mask = line[4:]
-                    d['mask'] = tool_mask
-                else:
-                    d['class'] = 'tissue'
-                    tti_mask = line[4:]
-                    d['mask'] = tti_mask
-            else:
-                d['is_tti'] = 0
-                d['class'] = 'tool'
-                non_tool_mask = line[4:]
-                d['mask'] = non_tool_mask
-                
-            l.append(d)
-        
-        
-        if len(l) == 2:
-            for dictionary in l:
-                if dictionary['class'] == 'tool':
-                    tool_mask = dictionary['mask']
-                elif dictionary['class'] == 'tissue':
-                    tissue_mask = dictionary['mask']
-            X_train.append(get_x_train(image_path,tool_mask,tissue_mask))
-            y_train.append(1)
-        
-        temp_dict = {}
-        temp_dict['1'] = []
-        
-        if len(l) == 3:
-            for dictionary in l:
-                if dictionary['is_tti'] == 1:
-                    temp_dict['1'].append(dictionary)
-                else:
-                    temp_dict['0'] = dictionary
-            
-        
-        for key in temp_dict.keys():
-            if key == 1:
-                for elem in temp_dict[key]:
-                    if elem['class'] == 'tool':
-                        tool_mask = elem['mask']
-                    else:
-                        tissue_mask = elem['mask']
-                X_train.append(get_x_train(image_path,tool_mask,tissue_mask))
-                y_train.append(1)
 
-            if key == 0:
-                for elem in temp_dict['1']:
-                    if elem['class'] == 'tissue':
-                        tissue_mask = elem['mask']
-                        
-                tool_mask = temp_dict['0']['mask']
-                X_train.append(get_x_train(image_path,tool_mask,tissue_mask))
-                y_train.append(0)
+        with open(matched_json, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            frame_indices = list(data['labels'].keys())
+            frame_indices = [int(idx) for idx in frame_indices if len(data['labels'][idx]) != 0]
+
+        for idx in frame_indices:
+            if int(idx) > 150:
+                continue
+            frame = _load_frame(cap, idx)
+            H, W = frame.size
+            
+            len_dict = len(data['labels'][str(idx)])
+            
+            if len_dict < 2:
+                continue
+            
+            if len_dict == 2:
+                for j in range(len_dict):
+                    if not bool(data['labels'][str(idx)][j].keys()):
+                        continue
+                    if 'is_tti' in data['labels'][str(idx)][j].keys():
+                            if data['labels'][str(idx)][j]['is_tti'] == 1:
+                                tti_polygon = data['labels'][str(idx)][j]['tti_polygon']
+                                tti_polygon_str = get_polygon(tti_polygon)
+                                tissue_mask = parse_mask_string(tti_polygon_str,H,W)
+                            else:
+                                continue
+                    else:
+                        instrument_polygon = data['labels'][str(idx)][j]['instrument_polygon']
+                        instrument_polygon_str = get_polygon(instrument_polygon)
+                        tool_mask = parse_mask_string(instrument_polygon_str,H,W)
+                
+                x_train.append(get_x_train(frame,tool_mask,tissue_mask))
+                y_train.append(1)
+          
+          
+            if len_dict == 3:
+                for j in range(len_dict):
+                    if not bool(data['labels'][str(idx)][j].keys()):
+                        continue
+                    if 'is_tti' in data['labels'][str(idx)][j].keys():
+                        if data['labels'][str(idx)][j]['is_tti'] == 1:
+                            tti_polygon = data['labels'][str(idx)][j]['tti_polygon']
+                            tti_polygon_str = get_polygon(tti_polygon)
+                            tissue_mask = parse_mask_string(tti_polygon_str,H,W)
+                        else:
+                            non_int_polygon = data['labels'][str(idx)][j]['instrument_polygon']
+                            non_int_polygon_str = get_polygon(non_int_polygon)
+                            non_tool_mask = parse_mask_string(non_int_polygon_str,H,W)
+                    else:
+                        instrument_polygon = data['labels'][str(idx)][j]['instrument_polygon']
+                        instrument_polygon_str = get_polygon(instrument_polygon)
+                        tool_mask = parse_mask_string(instrument_polygon_str,H,W)
+                print(frame)
+                x_train.append(get_x_train(frame,tool_mask,tissue_mask))
+                y_train.append(1)          
+                x_train.append(get_x_train(frame,non_tool_mask,tissue_mask))
+                y_train.append(0)          
+                
+            
+            if len_dict == 4:
+                pair_list = []
+                for j in range(len_dict):
+                    if not bool(data['labels'][str(idx)][j].keys()):
+                        continue
+                    if 'is_tti' in data['labels'][str(idx)][j].keys():
+                        if data['labels'][str(idx)][j]['is_tti'] == 1:
+                            tti_polygon = data['labels'][str(idx)][j]['tti_polygon']
+                            tti_polygon_str = get_polygon(tti_polygon)
+                            tissue_mask = parse_mask_string(tti_polygon_str,H,W)
+                            interaction_tool_name = data['labels'][str(idx)][j]['interaction_tool']
+                            pair_list.append((tissue_mask, interaction_tool_name))
+        
+                for j in range(len_dict):
+                    if not bool(data['labels'][str(idx)][j].keys()):
+                        continue
+                    if 'is_tti' not in data['labels'][str(idx)][j].keys():
+                        for pair in pair_list:
+                            tool_name = pair[1]
+                            tissue_mask = pair[0]
+                            instrument_polygon = data['labels'][str(idx)][j]['instrument_polygon']
+                            instrument_polygon_str = get_polygon(instrument_polygon)
+                            tool_mask = parse_mask_string(instrument_polygon_str,H,W)
+                            x_train.append(get_x_train(frame,tissue_mask,tool_mask))
+                            if tool_name == data['labels'][str(idx)][j]['instrument_type']:
+                                y_train.append(1)   
+                            else:
+                                y_train.append(0)  
+                                                        
+        count += 1
+       
     
-    return X_train , y_train
+    return x_train , y_train
 
 depth_model = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf") 
 
-def get_x_train(image_path,tool_mask,tissue_mask):
-     
-    image_roi = cv2.imread(image_path,cv2.IMREAD_COLOR)
-    depth_map = np.array(depth_model(image_path)["depth"])
-    roi = extract_union_roi(image_roi,tool_mask,tissue_mask,depth_map)  
+def get_x_train(image,tool_mask,tissue_mask):
+    depth_map = np.array(depth_model(image)["depth"])
+    image =  np.array(image)
+    roi = extract_union_roi(image,tool_mask,tissue_mask,depth_map)  
     roi_resized = cv2.resize(roi, (224, 224), interpolation=cv2.INTER_LINEAR)
     roi_np = np.transpose(roi_resized, (2, 0, 1)).astype(np.float32) / 255.0
-    
     return roi_np
 
 if __name__ == '__main__':
