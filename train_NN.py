@@ -4,7 +4,7 @@ import os
 
 def train_model(model, optimizer, loss_fn, X_train, y_train, epochs=30, batch_size=32):
    
-    # Creazione del DataLoader per i dati di addestramento
+    
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
     model.to(device)
@@ -14,19 +14,19 @@ def train_model(model, optimizer, loss_fn, X_train, y_train, epochs=30, batch_si
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
     os.makedirs("./model_folder", exist_ok=True)
-    # Ciclo per ogni epoca
+
     for epoch in range(epochs):
-        model.train(True)  # Imposta il modello in modalità di addestramento
+        model.train(True)  
         running_loss = 0.0
 
-        # Ciclo sui batch di dati
+        
         for inputs, labels in train_loader:
-            optimizer.zero_grad()  # Azzeramento dei gradienti
+            optimizer.zero_grad()  
 
-            outputs = model(inputs)  # Passaggio in avanti
-            loss = loss_fn(outputs, labels)  # Calcolo della perdita
-            loss.backward()  # Calcolo dei gradienti
-            optimizer.step()  # Aggiornamento dei pesi
+            outputs = model(inputs)  
+            loss = loss_fn(outputs, labels) 
+            loss.backward()  
+            optimizer.step()  
 
             running_loss += loss.item()
 
