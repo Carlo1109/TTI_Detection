@@ -69,7 +69,7 @@ def parse_mask_string(mask_str, H, W):
 
 
 def extract_union_roi(image, tool_mask, tissue_mask, depth_map=None):
-    H, W = image.shape[:2]
+    W, H = image.shape[:2]
     
     polygons = [tool_mask]
     tool_mask = np.zeros((H, W), dtype=np.uint8)
@@ -103,8 +103,8 @@ def create_train():
     
     videos = os.listdir(VIDEOS_PATH)
     labels = os.listdir(LABELS_PATH)
-    X_train = []
     y_train = []
+    x_train = []
 
     count = 0
     for video in videos:
@@ -113,8 +113,6 @@ def create_train():
 
         base_video = os.path.splitext(video)[0]
         key_video  = normalize(base_video)
-        y_train = []
-        x_train = []
 
 
         matched_json = None
@@ -138,7 +136,7 @@ def create_train():
             if int(idx) > 150:
                 continue
             frame = _load_frame(cap, idx)
-            H, W = frame.size
+            W, H = frame.size
             
             len_dict = len(data['labels'][str(idx)])
             
@@ -182,7 +180,6 @@ def create_train():
                         instrument_polygon = data['labels'][str(idx)][j]['instrument_polygon']
                         instrument_polygon_str = get_polygon(instrument_polygon)
                         tool_mask = parse_mask_string(instrument_polygon_str,H,W)
-                print(frame)
                 x_train.append(get_x_train(frame,tool_mask,tissue_mask))
                 y_train.append(1)          
                 x_train.append(get_x_train(frame,non_tool_mask,tissue_mask))
