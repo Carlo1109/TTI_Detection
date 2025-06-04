@@ -81,8 +81,12 @@ def parse_yolo_output(result) -> list[dict]:
         for idx_tool in tool_found:
             tissue_mask = masks[idx_tti].bool() & (~masks[idx_tool].bool())
             tool_mask = masks[idx_tool].bool()
-            res.append({'class': int(classes[idx_tti].cpu().detach().numpy()) , 'mask' : tissue_mask.int().cpu().detach().numpy()})
-            res.append({'class': int(classes[idx_tool].cpu().detach().numpy()) , 'mask':  tool_mask.int().cpu().detach().numpy()})
+            tti_dict = {'class': int(classes[idx_tti].cpu().detach().numpy()) , 'mask' : tissue_mask.int().cpu().detach().numpy()}
+            tool_dict = {'class': int(classes[idx_tool].cpu().detach().numpy()) , 'mask':  tool_mask.int().cpu().detach().numpy()}
+            if tti_dict not in res:
+                res.append(tti_dict)
+            if tool_dict not in res:
+                res.append(tool_dict)
             
     return res
 
