@@ -7,6 +7,7 @@ from ultralytics import YOLO
 from transformers import pipeline
 from PIL import Image
 from Model import ROIClassifier
+import matplotlib.pyplot as plt
 
 
 def load_yolo_model(model_path):
@@ -47,6 +48,7 @@ def found_objects(tool_list, tti_list, classes) -> list | list:
     return tool_found, tti_found
 
 
+# ------------------ DA RIVEDERE ----------------------
 def parse_yolo_output(result) -> list[dict]:
     
     r = result[0]
@@ -84,23 +86,33 @@ def parse_yolo_output(result) -> list[dict]:
             tti_dict = {'class': int(classes[idx_tti].cpu().detach().numpy()) , 'mask' : tissue_mask.int().cpu().detach().numpy()}
             tool_dict = {'class': int(classes[idx_tool].cpu().detach().numpy()) , 'mask':  tool_mask.int().cpu().detach().numpy()}
             
-            ttis = []
-            tools = []
+            
+            # -------------------------------- DA SISTEMARE ------------------------------------
+            
+            already_has_tti = False
             for elem in res:
-                if elem['class'] in tti_list:
-                    ttis.append(elem['mask'])
-                else:
-                    tools.append(elem['mask'])
-           
-            if tti_dict['mask'] not in ttis:
+                if elem['class'] == tti_dict['class'] and np.array_equal(elem['mask'], tti_dict['mask']):
+                    already_has_tti = True
+                    break
+
+            if not already_has_tti:
                 res.append(tti_dict)
-            if tool_dict['mask'] not in tools:
+
+          
+            already_has_tool = False
+            for elem in res:
+                if elem['class'] == tool_dict['class'] and np.array_equal(elem['mask'], tool_dict['mask']):
+                    already_has_tool = True
+                    break
+            if not already_has_tool:
                 res.append(tool_dict)
+
     return res
 
 tool_classes = list(range(0, 12))
 
 def find_tool_tissue_pairs(detections: list[dict]):
+    
     tools = [d for d in detections if d['class'] in tool_classes]
     tissues = [d for d in detections if d['class'] not in tool_classes]
     pairs = []
@@ -163,6 +175,27 @@ def end_to_end_pipeline(image, yolo_model, depth_model, tti_classifier, device):
     return detections, tti_predictions
 
 
+def show_mask_overlay_from_binary_mask(image_bgr, binary_mask, alpha=0.5, mask_color=(1.0, 0.0, 0.0)):
+
+    
+    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+
+    colored_mask = np.zeros_like(image_rgb)
+    colored_mask[..., 0] = mask_color[0]  
+    colored_mask[..., 1] = mask_color[1]  
+    colored_mask[..., 2] = mask_color[2]  
+
+ 
+    overlay = image_rgb.copy()
+    indices = binary_mask.astype(bool)
+    overlay[indices] = (1 - alpha) * image_rgb[indices] + alpha * colored_mask[indices]
+
+    plt.figure(figsize=(8, 8))
+    plt.imshow(overlay)
+    plt.axis('off')
+    plt.show()
+
+
 if __name__ == "__main__":
     model = load_yolo_model('./runs/segment/train/weights/best.pt')
     image = './Dataset/dataset/images/test/video0008_frame0035.png'
@@ -174,7 +207,33 @@ if __name__ == "__main__":
     tti_class.load_state_dict(torch.load('ROImodel.pt',map_location=device))
     tti_class.to(device)
     detection , tti_predictions  = end_to_end_pipeline(image,model,pipe,tti_class,device)
-    # print(detection)
+    
     print()
+
     print(tti_predictions)
-    # print(find_tool_tissue_pairs(pred))
+    
+    image_full = cv2.imread(image, cv2.IMREAD_COLOR)
+
+
+    H_full, W_full = image_full.shape[:2]
+
+    
+    tool_mask_full   = tti_predictions[0]['tool']['mask']    
+    tissue_mask_full = tti_predictions[0]['tissue']['mask'] 
+
+
+    tool_mask_resized = cv2.resize(
+        tool_mask_full.astype(np.uint8),
+        (W_full, H_full),
+        interpolation=cv2.INTER_NEAREST
+    )
+    tissue_mask_resized = cv2.resize(
+        tissue_mask_full.astype(np.uint8),
+        (W_full, H_full),
+        interpolation=cv2.INTER_NEAREST
+    )
+
+
+    show_mask_overlay_from_binary_mask(image_full, tool_mask_resized, mask_color=(1.0, 0.0, 0.0))
+
+    show_mask_overlay_from_binary_mask(image_full, tissue_mask_resized, mask_color=(0.0, 1.0, 0.0))

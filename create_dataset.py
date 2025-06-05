@@ -205,7 +205,7 @@ def create_dataset():
                 elif dict_len == 2:
                     instr_type = to_tool_id(data['labels'][str(idx)][j]['instrument_type'])
                     
-                    to_write += str(0) + ' ' + str(instr_type) #FIRST WAS str(0)
+                    to_write += str(0) + ' ' + str(instr_type) 
                     instrument_polygon = data['labels'][str(idx)][j]['instrument_polygon']
                     
                     for vertex in instrument_polygon.keys():
