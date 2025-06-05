@@ -10,7 +10,7 @@ from transformers import pipeline
 import os
 import re
 import json
-
+import matplotlib.pyplot as plt
 
 LABELS_PATH = './Dataset/out/'
 VIDEOS_PATH = './Dataset/LC 5 sec clips 30fps/'
@@ -158,9 +158,13 @@ def create_train():
                         instrument_polygon = data['labels'][str(idx)][j]['instrument_polygon']
                         instrument_polygon_str = get_polygon(instrument_polygon)
                         tool_mask = parse_mask_string(instrument_polygon_str,H,W)
-                
+                        
+                frame_cv = cv2.cvtColor(np.array(frame), cv2.COLOR_RGB2BGR)
+                show_mask_overlay(frame_cv, tool_mask)
+                show_mask_overlay(frame_cv, tissue_mask)
                 x_train.append(get_x_train(frame,tool_mask,tissue_mask))
                 y_train.append(1)
+                exit()
           
           
             if len_dict == 3:
@@ -229,6 +233,47 @@ def get_x_train(image,tool_mask,tissue_mask):
     roi_resized = cv2.resize(roi, (224, 224), interpolation=cv2.INTER_LINEAR)
     roi_np = np.transpose(roi_resized, (2, 0, 1)).astype(np.float32) / 255.0
     return roi_np
+
+
+
+
+
+def show_mask_overlay(image_bgr, polygon_coords, alpha=0.5, 
+                      mask_color=(1.0, 0.0, 0.0)):
+    H, W = image_bgr.shape[:2]
+
+   
+    mask = np.zeros((H, W), dtype=np.uint8)
+
+    
+    if polygon_coords is None or polygon_coords.shape[0] < 3:
+        print("Poligono non valido: meno di 3 vertici.")
+        return
+
+   
+    pts = polygon_coords.astype(np.int32)
+
+    
+    cv2.fillPoly(mask, [pts], color=1)
+
+    
+    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+
+   
+    colored_mask = np.zeros_like(image_rgb)
+    colored_mask[..., 0] = mask  
+    colored_mask[..., 1] = 0    
+    colored_mask[..., 2] = 0    
+
+    overlay = image_rgb.copy()
+    overlay[mask == 1] = (1 - alpha) * image_rgb[mask == 1] + alpha * colored_mask[mask == 1]
+
+
+    plt.figure(figsize=(8, 8))
+    plt.imshow(overlay)
+    plt.axis('off')
+    plt.show()
+
 
 if __name__ == '__main__':
     # create_train()
