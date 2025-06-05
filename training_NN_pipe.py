@@ -143,6 +143,10 @@ def create_train():
             if len_dict < 2:
                 continue
             
+            tissue_mask = None
+            tool_mask = None
+            non_tool_mask = None
+            
             if len_dict == 2:
                 for j in range(len_dict):
                     if not bool(data['labels'][str(idx)][j].keys()):
@@ -159,12 +163,14 @@ def create_train():
                         instrument_polygon_str = get_polygon(instrument_polygon)
                         tool_mask = parse_mask_string(instrument_polygon_str,H,W)
                         
-                frame_cv = cv2.cvtColor(np.array(frame), cv2.COLOR_RGB2BGR)
-                show_mask_overlay(frame_cv, tool_mask)
-                show_mask_overlay(frame_cv, tissue_mask)
-                x_train.append(get_x_train(frame,tool_mask,tissue_mask))
-                y_train.append(1)
-                exit()
+                # frame_cv = cv2.cvtColor(np.array(frame), cv2.COLOR_RGB2BGR)
+                # show_mask_overlay(frame_cv, tool_mask)
+                # show_mask_overlay(frame_cv, tissue_mask)
+
+                if tool_mask is not None and tissue_mask is not None:
+                    x_train.append(get_x_train(frame,tool_mask,tissue_mask))
+                    y_train.append(1)
+                # exit()
           
           
             if len_dict == 3:
@@ -184,10 +190,12 @@ def create_train():
                         instrument_polygon = data['labels'][str(idx)][j]['instrument_polygon']
                         instrument_polygon_str = get_polygon(instrument_polygon)
                         tool_mask = parse_mask_string(instrument_polygon_str,H,W)
-                x_train.append(get_x_train(frame,tool_mask,tissue_mask))
-                y_train.append(1)          
-                x_train.append(get_x_train(frame,non_tool_mask,tissue_mask))
-                y_train.append(0)          
+                if tool_mask is not None and tissue_mask is not None:
+                    x_train.append(get_x_train(frame,tool_mask,tissue_mask))
+                    y_train.append(1)   
+                if non_tool_mask is not None and tissue_mask is not None:       
+                    x_train.append(get_x_train(frame,non_tool_mask,tissue_mask))
+                    y_train.append(0)          
                 
             
             if len_dict == 4:
@@ -213,11 +221,12 @@ def create_train():
                             instrument_polygon = data['labels'][str(idx)][j]['instrument_polygon']
                             instrument_polygon_str = get_polygon(instrument_polygon)
                             tool_mask = parse_mask_string(instrument_polygon_str,H,W)
-                            x_train.append(get_x_train(frame,tissue_mask,tool_mask))
-                            if tool_name == data['labels'][str(idx)][j]['instrument_type']:
-                                y_train.append(1)   
-                            else:
-                                y_train.append(0)  
+                            if tissue_mask is not None and tool_mask is not None:
+                                x_train.append(get_x_train(frame,tissue_mask,tool_mask))
+                                if tool_name == data['labels'][str(idx)][j]['instrument_type']:
+                                    y_train.append(1)   
+                                else:
+                                    y_train.append(0)  
                                                         
         count += 1
        
@@ -229,8 +238,8 @@ depth_model = pipeline(task="depth-estimation", model="depth-anything/Depth-Anyt
 def get_x_train(image,tool_mask,tissue_mask):
     depth_map = np.array(depth_model(image)["depth"])
     image =  np.array(image)
-    roi = extract_union_roi(image,tool_mask,tissue_mask,depth_map)  
-    roi_resized = cv2.resize(roi, (224, 224), interpolation=cv2.INTER_LINEAR)
+    roi = extract_union_roi(image,tool_mask,tissue_mask,depth_map) 
+    roi_resized = cv2.resize(roi, (224, 224), interpolation=cv2.INTER_LINEAR) 
     roi_np = np.transpose(roi_resized, (2, 0, 1)).astype(np.float32) / 255.0
     return roi_np
 
