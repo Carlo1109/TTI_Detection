@@ -11,11 +11,11 @@ class ROIClassifier(nn.Module):
         self.backbone = models.resnet18(pretrained=True)
         self.backbone.fc = nn.Identity()
         
-        self.fc = nn.Sigmoid(512, num_hoi_classes)
+        self.fc = nn.Linear(512, num_hoi_classes)
         
     def forward(self, x):
         
         x = self.pre_conv(x)         
         features = self.backbone(x)   
-        out = self.fc(features)
+        out = nn.Sigmoid(self.fc(features)
         return out

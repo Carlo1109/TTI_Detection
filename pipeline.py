@@ -161,6 +161,7 @@ def end_to_end_pipeline(image, yolo_model, depth_model, tti_classifier, device):
 
         with torch.no_grad():
             tti_logits = tti_classifier(roi_tensor)
+            print(tti_logits)
             tti_class = torch.argmax(tti_logits, dim=1).item()
             tti_score = torch.softmax(tti_logits, dim=1).max().item()
 
