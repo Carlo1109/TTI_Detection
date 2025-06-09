@@ -34,8 +34,6 @@ def _load_frame(cap, frame_idx, transform = None):
 def normalize(name: str) -> str:
         return re.sub(r'[^A-Za-z0-9]', '', name).lower()
 
-
-
 def parse_mask_string(mask_str, H, W):
     
     if mask_str is None or mask_str.strip() == "":
@@ -239,8 +237,19 @@ def get_x_train(image,tool_mask,tissue_mask):
     depth_map = np.array(depth_model(image)["depth"])
     image =  np.array(image)
     roi = extract_union_roi(image,tool_mask,tissue_mask,depth_map) 
+    print(roi.shape)
+    cv2.imshow("depth",roi[...,3:])
+    roi_brg = cv2.cvtColor(roi[...,:3], cv2.COLOR_RGB2BGR)
+    cv2.imshow("image",roi_brg)
     roi_resized = cv2.resize(roi, (224, 224), interpolation=cv2.INTER_LINEAR) 
+    
+    roi_resized_brg = cv2.cvtColor(roi_resized[...,:3], cv2.COLOR_RGB2BGR)
+    cv2.imshow("image RESIZED",roi_resized_brg)
+    # print(roi_resized.shape)
+    cv2.imshow("depth RESIZED",roi_resized[...,3:])
+    cv2.waitKey(0)
     roi_np = np.transpose(roi_resized, (2, 0, 1)).astype(np.float32) / 255.0
+    # exit()
     return roi_np
 
 
