@@ -154,16 +154,30 @@ def end_to_end_pipeline(image, yolo_model, depth_model, tti_classifier, device):
         tool_mask = pair['tool']['mask']
         tissue_mask = pair['tissue']['mask']
         roi = extract_union_roi(image, tool_mask, tissue_mask, depth_map)
-
         # Prepare input for ROI classifier
         roi_tensor = torch.from_numpy(roi).permute(2, 0, 1).unsqueeze(0).float() / 255.0
         roi_tensor = roi_tensor.to(device)
-
+        
+        mean_rgb = [0.485, 0.456, 0.406]
+        std_rgb  = [0.229, 0.224, 0.225]
+        mean_t = torch.tensor(mean_rgb, device=device).view(1, 3, 1, 1)
+        std_t  = torch.tensor(std_rgb, device=device).view(1, 3, 1, 1)
+        roi_tensor[:, :3, :, :] = (roi_tensor[:, :3, :, :] - mean_t) / std_t
+       
+        tti_classifier.eval()
         with torch.no_grad():
             tti_logits = tti_classifier(roi_tensor)
+            # tti_logits = torch.sigmoid(tti_classifier(roi_tensor))
             print(tti_logits)
+       
+            # tti_logits = tti_logits.item()
             tti_class = torch.argmax(tti_logits, dim=1).item()
             tti_score = torch.softmax(tti_logits, dim=1).max().item()
+            # if tti_logits >= 0.5:
+            #     tti_class = 1
+            # else:
+            #     tti_class = 0
+            # tti_score = tti_logits
 
         # Save ROI result
         tti_predictions.append({
@@ -199,7 +213,7 @@ def show_mask_overlay_from_binary_mask(image_bgr, binary_mask, alpha=0.5, mask_c
 
 if __name__ == "__main__":
     model = load_yolo_model('./runs/segment/train/weights/best.pt')
-    image = './Dataset/dataset/images/test/video0008_frame0035.png'
+    image = './Dataset/dataset/images/test/video1322_frame0053.png'
     
     pipe = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
 
