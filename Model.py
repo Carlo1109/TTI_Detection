@@ -1,5 +1,6 @@
 import torchvision.models as models
 import torch.nn as nn
+import torch.nn.functional as F
 import torch
 
 class ROIClassifier(nn.Module):
@@ -17,5 +18,5 @@ class ROIClassifier(nn.Module):
         
         x = self.pre_conv(x)         
         features = self.backbone(x)   
-        out = self.fc(features)
+        out = F.sigmoid(self.fc(features))
         return out
