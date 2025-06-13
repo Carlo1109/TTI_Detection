@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 
 LABELS_PATH = './Dataset/out/'
 VIDEOS_PATH = './Dataset/LC 5 sec clips 30fps/'
+depth_model = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf") 
 
 
 def _load_video(video_path):
@@ -64,7 +65,6 @@ def parse_mask_string(mask_str, H, W):
         return np.zeros((0, 2), dtype=np.int32)
 
     return np.array(coords, dtype=np.int32)
-
 
 def extract_union_roi(image, tool_mask, tissue_mask, depth_map=None):
     W, H = image.shape[:2]
@@ -231,34 +231,82 @@ def create_train():
     
     return x_train , y_train
 
-depth_model = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf") 
-
 def get_x_train(image,tool_mask,tissue_mask):
     depth_map = np.array(depth_model(image)["depth"])
     image =  np.array(image)
     roi = extract_union_roi(image,tool_mask,tissue_mask,depth_map) 
-    print(roi.shape)
-    cv2.imshow("depth",roi[...,3:])
+    # print(roi.shape)
+    # cv2.imshow("depth",roi[...,3:])
     roi_brg = cv2.cvtColor(roi[...,:3], cv2.COLOR_RGB2BGR)
-    cv2.imshow("image",roi_brg)
+    # cv2.imshow("image",roi_brg)
     roi_resized = cv2.resize(roi, (224, 224), interpolation=cv2.INTER_LINEAR) 
     
     roi_resized_brg = cv2.cvtColor(roi_resized[...,:3], cv2.COLOR_RGB2BGR)
-    cv2.imshow("image RESIZED",roi_resized_brg)
+    # cv2.imshow("image RESIZED",roi_resized_brg)
     # print(roi_resized.shape)
-    cv2.imshow("depth RESIZED",roi_resized[...,3:])
-    cv2.waitKey(0)
+    # cv2.imshow("depth RESIZED",roi_resized[...,3:])
+    # cv2.waitKey(0)
     roi_np = np.transpose(roi_resized, (2, 0, 1)).astype(np.float32) / 255.0
     # exit()
     return roi_np
 
+def flip(img):
+    return cv2.flip(img, 1)
 
+def augmenting_train(x_train, y_train):
+    x_train = np.array(x_train)
+    y_train = np.array(y_train)
+
+    zeros = np.sum(y_train == 0)
+    ones  = np.sum(y_train == 1)
+    print(f"Before augmentation → 0: {zeros}, 1: {ones}")
+
+    if zeros < ones:
+        minority_label = 0
+        needed = ones - zeros
+    elif ones < zeros:
+        minority_label = 1
+        needed = zeros - ones
+    else:
+        print("Already balanced")
+        return x_train, y_train, [], []
+
+    minority_idx = np.where(y_train == minority_label)[0].tolist()
+    vis_indices = minority_idx[:needed]
+
+    random.seed(42)
+    augmented_x, augmented_y = [], []
+
+    for idx in vis_indices:
+        img_chw = x_train[idx]
+        img_hwc = (np.transpose(img_chw, (1,2,0)) * 255).astype(np.uint8)
+
+        img_aug_hwc = flip(img_hwc)
+        img_aug_chw = np.transpose(img_aug_hwc.astype(np.float32) / 255.0, (2,0,1))
+
+        augmented_x.append(img_aug_chw)
+        augmented_y.append(minority_label)
+
+    x_all = np.concatenate([x_train, np.stack(augmented_x)], axis=0)
+    y_all = np.concatenate([y_train, np.array(augmented_y)], axis=0)
+    perm = np.random.RandomState(42).permutation(len(y_all))
+    x_train_aug = x_all[perm]
+    y_train_aug = y_all[perm]
+
+    zeros_new = np.sum(y_train_aug == 0)
+    ones_new  = np.sum(y_train_aug == 1)
+    print(f"After augmentation  → 0: {zeros_new}, 1: {ones_new}")
+
+    return x_train_aug, y_train_aug
 
 if __name__ == '__main__':
-    # create_train()
     x_train , y_train = create_train()
+    
+    x_train_aug, y_train_aug = augmenting_train(x_train, y_train)
+
     model = ROIClassifier(2)
     loss_fn = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters())
-    train_model(model,optimizer,loss_fn,x_train,y_train,40)
+
+    train_model(model,optimizer,loss_fn,x_train_aug,y_train_aug,40)
     
