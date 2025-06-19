@@ -11,6 +11,7 @@ import os
 import re
 import json
 import matplotlib.pyplot as plt
+from pipeline import show_mask_overlay_from_binary_mask
 
 LABELS_PATH = './Dataset/out/'
 VIDEOS_PATH = './Dataset/LC 5 sec clips 30fps/'
@@ -70,23 +71,32 @@ def extract_union_roi(image, tool_mask, tissue_mask, depth_map=None):
     W, H = image.shape[:2]
     
     polygons = [tool_mask]
-    tool_mask = np.zeros((H, W), dtype=np.uint8)
+    tool_mask = np.zeros((W, H), dtype=np.uint8)
     cv2.fillPoly(tool_mask, polygons, color=1)
     
     polygons = [tissue_mask]
-    tissue_mask = np.zeros((H, W), dtype=np.uint8)
+    tissue_mask = np.zeros((W, H), dtype=np.uint8)
     cv2.fillPoly(tissue_mask, polygons, color=1)
-
+    
+ 
     
     combined_mask = (tool_mask + tissue_mask).clip(0, 1).astype('uint8') #before astype
     x, y, w, h = cv2.boundingRect(combined_mask)
-
+    print(x,y,w,h)
     roi = image[y:y+h, x:x+w]
 
     if depth_map is not None:
         depth_roi = depth_map[y:y+h, x:x+w]
         roi = np.concatenate([roi, depth_roi[..., None]], axis=-1)  # add depth as extra channel
 
+    tool_mask_cropped = tool_mask[y:y+h, x:x+w]
+    
+    tissue_mask_cropped = tissue_mask[y:y+h, x:x+w]
+    
+    merged_mask = cv2.bitwise_or(tool_mask_cropped, tissue_mask_cropped)
+    merged_mask = np.expand_dims(merged_mask, axis=-1)
+    roi = np.concatenate([roi, merged_mask*255], axis=-1)
+    
     return roi
 
 def get_polygon(polygon):
@@ -106,6 +116,7 @@ def create_train():
 
     count = 0
     for video in videos:
+       
         print(f"Processing video {count}/{len(videos)}: {video}")
         cap, frame_count = _load_video(os.path.join(VIDEOS_PATH, video))
 
@@ -149,11 +160,13 @@ def create_train():
                 for j in range(len_dict):
                     if not bool(data['labels'][str(idx)][j].keys()):
                         continue
+                    
                     if 'is_tti' in data['labels'][str(idx)][j].keys():
                             if data['labels'][str(idx)][j]['is_tti'] == 1:
                                 tti_polygon = data['labels'][str(idx)][j]['tti_polygon']
                                 tti_polygon_str = get_polygon(tti_polygon)
                                 tissue_mask = parse_mask_string(tti_polygon_str,H,W)
+                                
                             else:
                                 continue
                     else:
@@ -235,19 +248,21 @@ def get_x_train(image,tool_mask,tissue_mask):
     depth_map = np.array(depth_model(image)["depth"])
     image =  np.array(image)
     roi = extract_union_roi(image,tool_mask,tissue_mask,depth_map) 
-    # print(roi.shape)
-    # cv2.imshow("depth",roi[...,3:])
+    print(roi.shape)
+    cv2.imshow("depth",roi[...,3:4])
+    cv2.imshow("masks",roi[...,4:])
+    
     roi_brg = cv2.cvtColor(roi[...,:3], cv2.COLOR_RGB2BGR)
-    # cv2.imshow("image",roi_brg)
+    cv2.imshow("image",roi_brg)
     roi_resized = cv2.resize(roi, (224, 224), interpolation=cv2.INTER_LINEAR) 
     
     roi_resized_brg = cv2.cvtColor(roi_resized[...,:3], cv2.COLOR_RGB2BGR)
     # cv2.imshow("image RESIZED",roi_resized_brg)
     # print(roi_resized.shape)
     # cv2.imshow("depth RESIZED",roi_resized[...,3:])
-    # cv2.waitKey(0)
+    cv2.waitKey(0)
     roi_np = np.transpose(roi_resized, (2, 0, 1)).astype(np.float32) / 255.0
-    # exit()
+  
     return roi_np
 
 def flip(img):
@@ -274,7 +289,7 @@ def augmenting_train(x_train, y_train):
     minority_idx = np.where(y_train == minority_label)[0].tolist()
     vis_indices = minority_idx[:needed]
 
-    random.seed(42)
+    np.random.seed(42)
     augmented_x, augmented_y = [], []
 
     for idx in vis_indices:
@@ -287,11 +302,8 @@ def augmenting_train(x_train, y_train):
         augmented_x.append(img_aug_chw)
         augmented_y.append(minority_label)
 
-    x_all = np.concatenate([x_train, np.stack(augmented_x)], axis=0)
-    y_all = np.concatenate([y_train, np.array(augmented_y)], axis=0)
-    perm = np.random.RandomState(42).permutation(len(y_all))
-    x_train_aug = x_all[perm]
-    y_train_aug = y_all[perm]
+    x_train_aug = np.concatenate([x_train, np.stack(augmented_x)], axis=0)
+    y_train_aug = np.concatenate([y_train, np.array(augmented_y)], axis=0)
 
     zeros_new = np.sum(y_train_aug == 0)
     ones_new  = np.sum(y_train_aug == 1)
@@ -302,11 +314,11 @@ def augmenting_train(x_train, y_train):
 if __name__ == '__main__':
     x_train , y_train = create_train()
     
-    x_train_aug, y_train_aug = augmenting_train(x_train, y_train)
+    # x_train_aug, y_train_aug = augmenting_train(x_train, y_train)
 
     model = ROIClassifier(2)
     loss_fn = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters())
 
-    train_model(model,optimizer,loss_fn,x_train_aug,y_train_aug,40)
+    train_model(model,optimizer,loss_fn,x_train,y_train,40)
     
