@@ -132,7 +132,16 @@ def extract_union_roi(image, tool_mask, tissue_mask, depth_map=None):
         depth_roi = depth_map[y:y+h, x:x+w]
         roi = np.concatenate([roi, depth_roi[..., None]], axis=-1)  # add depth as extra channel
 
+    tool_mask_cropped = tool_mask[y:y+h, x:x+w]
+    
+    tissue_mask_cropped = tissue_mask[y:y+h, x:x+w]
+    
+    merged_mask = cv2.bitwise_or(tool_mask_cropped, tissue_mask_cropped)
+    merged_mask = np.expand_dims(merged_mask, axis=-1)
+    roi = np.concatenate([roi, merged_mask*255], axis=-1)
+    
     return roi
+
 
 
 def end_to_end_pipeline(image, yolo_model, depth_model, tti_classifier, device):
