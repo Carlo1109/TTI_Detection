@@ -171,11 +171,11 @@ def end_to_end_pipeline(image, yolo_model, depth_model, tti_classifier, device):
         roi_tensor = torch.from_numpy(roi).permute(2, 0, 1).unsqueeze(0).float() / 255.0
         roi_tensor = roi_tensor.to(device)
         
-        mean_rgb = [0.485, 0.456, 0.406]
-        std_rgb  = [0.229, 0.224, 0.225]
-        mean_t = torch.tensor(mean_rgb, device=device).view(1, 3, 1, 1)
-        std_t  = torch.tensor(std_rgb, device=device).view(1, 3, 1, 1)
-        roi_tensor[:, :3, :, :] = (roi_tensor[:, :3, :, :] - mean_t) / std_t
+        # mean_rgb = [0.485, 0.456, 0.406]
+        # std_rgb  = [0.229, 0.224, 0.225]
+        # mean_t = torch.tensor(mean_rgb, device=device).view(1, 3, 1, 1)
+        # std_t  = torch.tensor(std_rgb, device=device).view(1, 3, 1, 1)
+        # roi_tensor[:, :3, :, :] = (roi_tensor[:, :3, :, :] - mean_t) / std_t
        
         tti_classifier.eval()
         with torch.no_grad():
