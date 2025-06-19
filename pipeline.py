@@ -81,8 +81,12 @@ def parse_yolo_output(result) -> list[dict]:
     
     for idx_tti in tti_found:
         for idx_tool in tool_found:
-            tissue_mask = masks[idx_tti].bool() & (~masks[idx_tool].bool())
-            tool_mask = masks[idx_tool].bool()
+            # tissue_mask = masks[idx_tti].bool() & (~masks[idx_tool].bool())
+            # tool_mask = masks[idx_tool].bool()
+            
+            tissue_mask = masks[idx_tti]
+            tool_mask = masks[idx_tool]
+            
             tti_dict = {'class': int(classes[idx_tti].cpu().detach().numpy()) , 'mask' : tissue_mask.int().cpu().detach().numpy()}
             tool_dict = {'class': int(classes[idx_tool].cpu().detach().numpy()) , 'mask':  tool_mask.int().cpu().detach().numpy()}
             
@@ -222,7 +226,7 @@ def show_mask_overlay_from_binary_mask(image_bgr, binary_mask, alpha=0.5, mask_c
 
 if __name__ == "__main__":
     model = load_yolo_model('./runs/segment/train/weights/best.pt')
-    image = './Dataset/dataset/images/test/video0165_frame0040.png'
+    image = './Dataset/dataset/images/train/video0656_frame0000.png'
     
     pipe = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
 
@@ -241,23 +245,26 @@ if __name__ == "__main__":
 
     H_full, W_full = image_full.shape[:2]
 
-    
-    tool_mask_full   = tti_predictions[0]['tool']['mask']    
-    tissue_mask_full = tti_predictions[0]['tissue']['mask'] 
+    for i in range(len(tti_predictions)):
+        tool_mask_full   = tti_predictions[i]['tool']['mask']    
+        tissue_mask_full = tti_predictions[i]['tissue']['mask'] 
+
+        print("TOOL: " , tti_predictions[i]['tool']['class'])
+        print("TISSUE: " , tti_predictions[i]['tissue']['class'])
+        print("TTI: " , tti_predictions[i]['tti_class'])
+
+        tool_mask_resized = cv2.resize(
+            tool_mask_full.astype(np.uint8),
+            (W_full, H_full),
+            interpolation=cv2.INTER_NEAREST
+        )
+        tissue_mask_resized = cv2.resize(
+            tissue_mask_full.astype(np.uint8),
+            (W_full, H_full),
+            interpolation=cv2.INTER_NEAREST
+        )
 
 
-    tool_mask_resized = cv2.resize(
-        tool_mask_full.astype(np.uint8),
-        (W_full, H_full),
-        interpolation=cv2.INTER_NEAREST
-    )
-    tissue_mask_resized = cv2.resize(
-        tissue_mask_full.astype(np.uint8),
-        (W_full, H_full),
-        interpolation=cv2.INTER_NEAREST
-    )
+        show_mask_overlay_from_binary_mask(image_full, tool_mask_resized, mask_color=(1.0, 0.0, 0.0))
 
-
-    show_mask_overlay_from_binary_mask(image_full, tool_mask_resized, mask_color=(1.0, 0.0, 0.0))
-
-    show_mask_overlay_from_binary_mask(image_full, tissue_mask_resized, mask_color=(0.0, 1.0, 0.0))
+        show_mask_overlay_from_binary_mask(image_full, tissue_mask_resized, mask_color=(0.0, 1.0, 0.0))
