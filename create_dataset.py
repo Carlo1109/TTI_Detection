@@ -121,7 +121,7 @@ def to_tti_id(name):
 
 def create_dataset():
     file_path   = 'Dataset'
-    videos_path = os.path.join(file_path, 'LC 5 sec clips 30fps')
+    videos_path = os.path.join(file_path, 'Video/train')
     json_folder = os.path.join(file_path, 'out')
 
     def normalize(name: str) -> str:
@@ -243,7 +243,7 @@ def split_dataset():
     folders     = ['images', 'labels']
     splits      = ['train', 'val', 'test']
     train_split = 0.8
-    val_split   = 0.1
+    val_split   = 0.2
     # test_split (0.1)
 
 

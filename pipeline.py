@@ -226,7 +226,7 @@ def show_mask_overlay_from_binary_mask(image_bgr, binary_mask, alpha=0.5, mask_c
 
 if __name__ == "__main__":
     model = load_yolo_model('./runs/segment/train/weights/best.pt')
-    image = './Dataset/dataset/images/train/video0656_frame0000.png'
+    image = './Dataset/dataset/images/train/video0001_frame0000.png'
     
     pipe = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
 
