@@ -48,7 +48,7 @@ def found_objects(tool_list, tti_list, classes) -> list | list:
     return tool_found, tti_found
 
 
-# ------------------ DA RIVEDERE ----------------------
+
 def parse_yolo_output(result) -> list[dict]:
     
     r = result[0]
@@ -91,7 +91,7 @@ def parse_yolo_output(result) -> list[dict]:
             tool_dict = {'class': int(classes[idx_tool].cpu().detach().numpy()) , 'mask':  tool_mask.int().cpu().detach().numpy()}
             
             
-            # -------------------------------- DA SISTEMARE ------------------------------------
+            
             
             already_has_tti = False
             for elem in res:
