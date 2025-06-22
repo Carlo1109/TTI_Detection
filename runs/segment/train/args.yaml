@@ -2,7 +2,7 @@ task: segment
 mode: train
 model: yolo11s-seg.pt
 data: /kaggle/input/tti-dataset/dataset copy.yaml
-epochs: 85
+epochs: 100
 time: null
 patience: 100
 batch: 16
