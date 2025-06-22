@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 def load_yolo_model(model_path):
     # Load your YOLOv11-seg model (pseudo-code, depends on repo)
-    model = YOLO(model_path,verbose=False)
+    model = YOLO(model_path)
     # model.eval()
     # print(model)
     return model
@@ -26,7 +26,7 @@ def yolo_inference(model, image) -> list[dict]:
     # input_tensor = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0).float() / 255.0
     # with torch.no_grad():
     
-    output = model.predict(image,verbose=False)
+    output = model.predict(image)
 
     # Parse output into masks & classes (depends on repo!)
     detections = parse_yolo_output(output) # function to be implemented
@@ -52,8 +52,6 @@ def found_objects(tool_list, tti_list, classes) -> list | list:
 def parse_yolo_output(result) -> list[dict]:
     
     r = result[0]
-    if len(result[0].boxes.cls) == 0:
-        return []
     if len(result[0].boxes.cls) < 2 :
         return [{'class':int(r.boxes.cls[0].cpu().detach().numpy()) , 'mask': r.masks.data[0].cpu().detach().numpy()}]
     
@@ -133,20 +131,17 @@ def extract_union_roi(image, tool_mask, tissue_mask, depth_map=None):
     x, y, w, h = cv2.boundingRect(combined_mask)
 
     roi = image[y:y+h, x:x+w]
-  
 
     if depth_map is not None:
         depth_roi = depth_map[y:y+h, x:x+w]
         roi = np.concatenate([roi, depth_roi[..., None]], axis=-1)  # add depth as extra channel
 
-    merged_mask = cv2.bitwise_or(tool_mask, tissue_mask)
-    merged_mask = merged_mask[y:y+h, x:x+w]
-    merged_mask = np.expand_dims(merged_mask, axis=-1)
+    tool_mask_cropped = tool_mask[y:y+h, x:x+w]
     
-    if merged_mask.shape[1] != roi.shape[1] or merged_mask.shape[0] != roi.shape[0]:
-        print("MISMATCH")
-        return None
-
+    tissue_mask_cropped = tissue_mask[y:y+h, x:x+w]
+    
+    merged_mask = cv2.bitwise_or(tool_mask_cropped, tissue_mask_cropped)
+    merged_mask = np.expand_dims(merged_mask, axis=-1)
     roi = np.concatenate([roi, merged_mask*255], axis=-1)
     
     return roi
@@ -167,13 +162,11 @@ def end_to_end_pipeline(image, yolo_model, depth_model, tti_classifier, device):
    
     
     tti_predictions = []
-
+    print(len(pairs))
     for pair in pairs:
         tool_mask = pair['tool']['mask']
         tissue_mask = pair['tissue']['mask']
         roi = extract_union_roi(image, tool_mask, tissue_mask, depth_map)
-        if roi is None:
-            return [] ,[]
         # Prepare input for ROI classifier
         roi_tensor = torch.from_numpy(roi).permute(2, 0, 1).unsqueeze(0).float() / 255.0
         roi_tensor = roi_tensor.to(device)
@@ -188,7 +181,7 @@ def end_to_end_pipeline(image, yolo_model, depth_model, tti_classifier, device):
         with torch.no_grad():
             tti_logits = tti_classifier(roi_tensor)
             # tti_logits = torch.sigmoid(tti_classifier(roi_tensor))
-            # print(tti_logits)
+            print(tti_logits)
        
             # tti_logits = tti_logits.item()
             tti_class = torch.argmax(tti_logits, dim=1).item()

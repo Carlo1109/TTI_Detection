@@ -9,8 +9,8 @@ def train_model(model, optimizer, loss_fn, X_train, y_train, epochs=30, batch_si
     
     model.to(device)
     
-    train_dataset = TensorDataset(torch.tensor(X_train, dtype=torch.float32).to(device),
-                                  torch.tensor(y_train, dtype=torch.long).to(device))
+    train_dataset = TensorDataset(torch.tensor(X_train, dtype=torch.float32),
+                                  torch.tensor(y_train, dtype=torch.long))
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
     os.makedirs("./model_folder", exist_ok=True)
@@ -23,6 +23,9 @@ def train_model(model, optimizer, loss_fn, X_train, y_train, epochs=30, batch_si
         for inputs, labels in train_loader:
             optimizer.zero_grad()  
 
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+            
             outputs = model(inputs)  
             loss = loss_fn(outputs, labels) 
             loss.backward()  
