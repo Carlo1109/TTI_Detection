@@ -158,12 +158,13 @@ def end_to_end_pipeline(image, yolo_model, depth_model, tti_classifier, device):
     detections = yolo_inference(yolo_model, image)
     
     # depth_map = depth_model(image)
-    depth_map = np.array(depth_model(image)["depth"])
+    # depth_map = np.array(depth_model(image)["depth"])
+    depth_map = np.array(depth_model(Image.fromarray(image))["depth"])
 
     # Step 2: Pairing
     pairs = find_tool_tissue_pairs(detections)
 
-    image = cv2.imread(image,cv2.IMREAD_COLOR)
+    # image = cv2.imread(image,cv2.IMREAD_COLOR)
    
     
     tti_predictions = []
@@ -225,10 +226,11 @@ def show_mask_overlay_from_binary_mask(image_bgr, binary_mask, alpha=0.5, mask_c
     indices = binary_mask.astype(bool)
     overlay[indices] = (1 - alpha) * image_rgb[indices] + alpha * colored_mask[indices]
 
-    plt.figure(figsize=(8, 8))
-    plt.imshow(overlay)
-    plt.axis('off')
-    plt.show()
+    return cv2.cvtColor((overlay * 255).astype(np.uint8), cv2.COLOR_RGB2BGR)
+    # plt.figure(figsize=(8, 8))
+    # plt.imshow(overlay)
+    # plt.axis('off')
+    # plt.show()
 
 
 if __name__ == "__main__":
