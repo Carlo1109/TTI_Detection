@@ -15,6 +15,8 @@ def real(video,yolo_model,depth,tti_classifier,device):
     while success:
         
         detection , tti_predictions  = end_to_end_pipeline(image,yolo_model,depth,tti_classifier,device)
+        
+        overlay_mask = None    
         combined_tool_mask = np.zeros((H_full, W_full), dtype=np.uint8)
         combined_tissue_mask = np.zeros((H_full, W_full), dtype=np.uint8)
         for elem in tti_predictions:
@@ -47,8 +49,10 @@ def real(video,yolo_model,depth,tti_classifier,device):
             overlay_image_tissue = show_mask_overlay_from_binary_mask(image, combined_tissue_mask, alpha=0.5, mask_color=(0.0, 1.0, 0.0))
             overlay_mask = cv2.bitwise_or(overlay_image_tool,overlay_image_tissue)
             
-            
-        cv2.imshow("video", overlay_mask )
+        if overlay_mask is not None:
+            cv2.imshow("video", overlay_mask )
+        else:
+            cv2.imshow("video", image )
         cv2.waitKey(1)
       
         success,image = vidcap.read()
@@ -68,7 +72,7 @@ def real(video,yolo_model,depth,tti_classifier,device):
 
 if __name__ == "__main__":
     model = load_yolo_model('./runs/segment/train/weights/best.pt')
-    video = './Dataset/Video/test/Adnanset-Lc 11-010.mp4'
+    video = './Dataset/Video/test/Adnanset-Lc 1-007.mp4'
     
     pipe = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
 
