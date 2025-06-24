@@ -226,22 +226,22 @@ def generate_predictions(yolo_model,depth_model,tti_classifier):
 
 
 if __name__ == "__main__":
-    # model = load_yolo_model('./runs/segment/train/weights/best.pt')
-    # depth = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
-    # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    # tti_class = ROIClassifier(2)
-    # tti_class.load_state_dict(torch.load('ROImodel.pt',map_location=device))
-    # tti_class.to(device)
+    model = load_yolo_model('./runs_YoloN/segment/train/weights/best.pt')
+    depth = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    tti_class = ROIClassifier(2)
+    tti_class.load_state_dict(torch.load('ROImodel.pt',map_location=device))
+    tti_class.to(device)
     
-    # y_pred , y_true = generate_predictions(model,depth,tti_class)
+    y_pred , y_true = generate_predictions(model,depth,tti_class)
 
     # with open("data.pkl", "wb") as f:
     #     pickle.dump([y_true,y_pred], f)
         
-    with open("./data.pkl",'rb') as f:
-        data = pickle.load(f)
+    # with open("./data.pkl",'rb') as f:
+    #     data = pickle.load(f)
     
-    y_true , y_pred = data
+    # y_true , y_pred = data
     
 
     l = len(y_true)

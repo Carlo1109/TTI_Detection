@@ -8,6 +8,7 @@ from transformers import pipeline
 from PIL import Image
 from Model import ROIClassifier
 import matplotlib.pyplot as plt
+import time
 
 
 def load_yolo_model(model_path):
@@ -155,16 +156,19 @@ def extract_union_roi(image, tool_mask, tissue_mask, depth_map=None):
 
 def end_to_end_pipeline(image, yolo_model, depth_model, tti_classifier, device):
     # Step 1: YOLOv11-seg and depth estimation
+  
     detections = yolo_inference(yolo_model, image)
-    
+
     # depth_map = depth_model(image)
-    depth_map = np.array(depth_model(image)["depth"])
-    # depth_map = np.array(depth_model(Image.fromarray(image))["depth"])
+    # depth_map = np.array(depth_model(image)["depth"])
+    
+
+    depth_map = np.array(depth_model(Image.fromarray(image))["depth"])
 
     # Step 2: Pairing
     pairs = find_tool_tissue_pairs(detections)
 
-    image = cv2.imread(image,cv2.IMREAD_COLOR)
+    # image = cv2.imread(image,cv2.IMREAD_COLOR)
    
     
     tti_predictions = []
