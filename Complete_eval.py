@@ -24,6 +24,8 @@ def generate_predictions(yolo_model,depth_model,tti_classifier):
     
     l = len(images)
     i = 1
+    wrong_tti = 0
+    wrong_class = 0
     for img in images:
         print(f"Predicting image {i}/{l}")
         i+=1
@@ -47,7 +49,7 @@ def generate_predictions(yolo_model,depth_model,tti_classifier):
         _ , tti_predictions  = end_to_end_pipeline(IMAGES_TEST + img,yolo_model,depth_model,tti_classifier,device)
         
 
-        if len(tti_predictions) == 0:
+        if len(tti_predictions) == 0 and len(d) != 0:
             y_pred.append(0)
             y_true.append(1)
         
@@ -68,11 +70,15 @@ def generate_predictions(yolo_model,depth_model,tti_classifier):
                     else:
                         y_pred.append(0)
                         y_true.append(1)
+                        wrong_tti += 1
             
             if not found:
                 y_pred.append(0)
                 y_true.append(1)
-            
+                wrong_class+=1
+    
+    print("Wrong tti: ",wrong_tti)
+    print("Wrong class: ",wrong_class)
     return y_pred , y_true
 
 
@@ -108,9 +114,6 @@ if __name__ == "__main__":
     print("Zeros: ", zeros)
     
     print("Accuracy: ", accuracy_score(y_true, y_pred))
-    print("f1 MACRO: ", f1_score(y_true, y_pred,average='macro'))
-    print("precision: ", precision_score(y_true, y_pred))
-    print("recall: ", recall_score(y_true, y_pred))
 
 
 
