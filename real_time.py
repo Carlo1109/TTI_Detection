@@ -18,9 +18,15 @@ import time
 
 def real(video, yolo_model, depth, tti_classifier, device):
     vidcap = cv2.VideoCapture(video)
+
     
     success, image = vidcap.read()
     H_full, W_full = image.shape[:2]
+
+    # VideoWriter to save the processed video
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for mp4
+    out = cv2.VideoWriter('processed_video.mp4', fourcc, 20.0, (W_full, H_full))
+    
     while success:
         before = time.time()
         detection , tti_predictions  = end_to_end_pipeline(image, yolo_model, depth, tti_classifier, device)
@@ -71,12 +77,18 @@ def real(video, yolo_model, depth, tti_classifier, device):
             
         
         for (x, y, w, h) in bounding_boxes:
-            cv2.rectangle(overlay_mask, (x, y), (x + w, y + h), (0, 255, 0), 2)  
+            cv2.rectangle(overlay_mask, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+            #Added the following line
+            cv2.putText(overlay_mask, f"Class: {tti_class}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)  
         
         if overlay_mask is not None:
-            cv2.imshow("video", overlay_mask)
+            # cv2.imshow("video", overlay_mask)
+            out.write(overlay_mask)
         else:
-            cv2.imshow("video", image)
+            # cv2.imshow("video", image)
+            out.write(image)
+
         cv2.waitKey(1)
       
         success, image = vidcap.read()
@@ -86,6 +98,7 @@ def real(video, yolo_model, depth, tti_classifier, device):
 
     vidcap.release()
     cv2.destroyAllWindows()
+    out.release()
 
         
 
