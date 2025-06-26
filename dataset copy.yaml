@@ -1,6 +1,6 @@
 
-train:  /kaggle/input/tti-dataset/dataset/dataset/images/train   # path to training images
-val: /kaggle/input/tti-dataset/dataset/dataset/images/val        # path to validation images
+train:  /kaggle/input/tti-dataset/dataset/yolo_dataset/images/train   # path to training images
+val: /kaggle/input/tti-dataset/dataset/yolo_dataset/images/val        # path to validation images
 names:
 #Tool id
   0: unknown_tool

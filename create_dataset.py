@@ -125,8 +125,8 @@ def normalize(name: str) -> str:
 
 def create_dataset():
     file_path   = 'Dataset'
-    videos_path = os.path.join(file_path, 'Video/train')
-    json_folder = os.path.join(file_path, 'out')
+    videos_path = os.path.join(file_path, 'video_dataset/videos/val')
+    json_folder = os.path.join(file_path, 'video_dataset/labels/val')
 
 
     i = 1
@@ -163,7 +163,7 @@ def create_dataset():
             if int(idx) > 150:
                 continue
             frame = _load_frame(cap, idx)
-            out_img = os.path.join(file_path, 'dataset', 'images', 'train',f'video{i:04d}_frame{idx:04d}.png')
+            out_img = os.path.join(file_path, 'yolo_dataset', 'images', 'val',f'video{i:04d}_frame{idx:04d}.png')
             frame.save(out_img)
             print(f"Saved {out_img}") 
 
@@ -217,14 +217,14 @@ def create_dataset():
                         
                     to_write += '\n'
                     
-            with open(file_path+'/dataset/labels/train/'+ f'video{i:04d}_frame{idx:04d}.txt', 'w', encoding='utf-8') as f:
+            with open(file_path+'/yolo_dataset/labels/val/'+ f'video{i:04d}_frame{idx:04d}.txt', 'w', encoding='utf-8') as f:
                 f.write(to_write)   
 
         i += 1
 
 
 def move_file(fname, split):
-    base_dir    = './Dataset/dataset'
+    base_dir = './Dataset/video_dataset'
     
     # image
     src_img = os.path.join(base_dir, 'videos', 'train', fname)
@@ -241,7 +241,7 @@ def move_file(fname, split):
 
 def split_dataset():
 
-    base_dir    = './Dataset/dataset'
+    base_dir    = './Dataset/video_dataset'
     folders     = ['videos', 'labels']
     splits      = ['train', 'val', 'test']
     train_split = 0.75
@@ -256,7 +256,7 @@ def split_dataset():
 
 
     img_train_dir = os.path.join(base_dir, 'videos', 'train')
-    all_imgs = [f for f in os.listdir(img_train_dir) if f.lower().endswith('.png')]
+    all_imgs = [f for f in os.listdir(img_train_dir) if f.lower().endswith('.mp4')]
 
     # shuffle per random
     random.seed(42)
@@ -285,42 +285,43 @@ def split_dataset():
     
     
 if __name__ == "__main__":
-    # create_dataset()
+    create_dataset()
     # split_dataset()
     
-    PATH_VIDEO = './Dataset/dataset/videos/train/'
-    path_labels = './Dataset/dataset/labels/train/'
-    
-    
-    labels = os.listdir(path_labels)
-    i=0
-    c = 0
+    PATH_VIDEO = './Dataset/video_dataset/videos/train/'
+    path_labels = './Dataset/video_dataset/labels/train/'
+    # shutil.move(path_labels + 'Adnanset-Lc 122-003.json', './Dataset/video_dataset/labels/test/')
 
-    to_remove = []
+    
+    # labels = os.listdir(path_labels)
+    # i=0
+    # c = 0
 
-    for label in labels:
+    # to_remove = []
+
+    # for label in labels:
   
-        print(f"processing label {c}/{len(labels)}")
-        c+=1
-        key_label  = os.path.splitext(label)[0]
-        key_label = normalize(key_label)
-        matched_video = None
-        found = False
+    #     print(f"processing label {c}/{len(labels)}")
+    #     c+=1
+    #     key_label  = os.path.splitext(label)[0]
+    #     key_label = normalize(key_label)
+    #     matched_video = None
+    #     found = False
 
-        for video in os.listdir(PATH_VIDEO):
-            name_no_ext = os.path.splitext(video)[0]
-            if normalize(name_no_ext) == key_label:
-                matched_video = os.path.join(PATH_VIDEO, name_no_ext)
-                found = True
-                break
+    #     for video in os.listdir(PATH_VIDEO):
+    #         name_no_ext = os.path.splitext(video)[0]
+    #         if normalize(name_no_ext) == key_label:
+    #             matched_video = os.path.join(PATH_VIDEO, name_no_ext)
+    #             found = True
+    #             break
         
-        if not found:
-            to_remove.append(label)
-            i+=1
+    #     if not found:
+    #         to_remove.append(label)
+    #         i+=1
     
-    for elem in to_remove:
-        os.remove(path_labels+elem)
-    print("Eliminated " + str(i) + " labels")
+    # for elem in to_remove:
+    #     os.remove(path_labels+elem)
+    # print("Eliminated " + str(len(to_remove)) + " labels")
           
 
     

@@ -1,5 +1,10 @@
-Dissector
 Harmonic
+Bipolar
+Suction
 Grasper
+Scissors
 Grasper 2
+Dissector
 Cautery (Hook, Spatula)
+Grasper 3
+Stapler
