@@ -119,13 +119,15 @@ def to_tti_id(name):
 
 """CODE TO CREATE THE DATASET"""
 
+def normalize(name: str) -> str:
+    return re.sub(r'[^A-Za-z0-9]', '', name).lower()
+
+
 def create_dataset():
     file_path   = 'Dataset'
     videos_path = os.path.join(file_path, 'Video/train')
     json_folder = os.path.join(file_path, 'out')
 
-    def normalize(name: str) -> str:
-        return re.sub(r'[^A-Za-z0-9]', '', name).lower()
 
     i = 1
     videos = os.listdir(videos_path)
@@ -225,12 +227,12 @@ def move_file(fname, split):
     base_dir    = './Dataset/dataset'
     
     # image
-    src_img = os.path.join(base_dir, 'images', 'train', fname)
-    dst_img = os.path.join(base_dir, 'images', split, fname)
+    src_img = os.path.join(base_dir, 'videos', 'train', fname)
+    dst_img = os.path.join(base_dir, 'videos', split, fname)
     shutil.move(src_img, dst_img)
 
     # labels
-    lbl = fname.replace('.png', '.txt')
+    lbl = fname.replace('.mp4', '.json')
     src_lbl = os.path.join(base_dir, 'labels', 'train', lbl)
     dst_lbl = os.path.join(base_dir, 'labels', split, lbl)
     if os.path.exists(src_lbl):
@@ -240,9 +242,9 @@ def move_file(fname, split):
 def split_dataset():
 
     base_dir    = './Dataset/dataset'
-    folders     = ['images', 'labels']
+    folders     = ['videos', 'labels']
     splits      = ['train', 'val', 'test']
-    train_split = 0.8
+    train_split = 0.75
     val_split   = 0.2
     # test_split (0.1)
 
@@ -253,7 +255,7 @@ def split_dataset():
             os.makedirs(path, exist_ok=True)
 
 
-    img_train_dir = os.path.join(base_dir, 'images', 'train')
+    img_train_dir = os.path.join(base_dir, 'videos', 'train')
     all_imgs = [f for f in os.listdir(img_train_dir) if f.lower().endswith('.png')]
 
     # shuffle per random
@@ -261,7 +263,7 @@ def split_dataset():
     random.shuffle(all_imgs)
 
     n = len(all_imgs)
-    print("The whole dataset is composed by " + str(n) + " images")
+    print("The whole dataset is composed by " + str(n) + " videos")
     n_train = int(n * train_split)
     n_val   = int(n * val_split)
     n_test = n - n_train - n_val
@@ -283,5 +285,42 @@ def split_dataset():
     
     
 if __name__ == "__main__":
-    create_dataset()
-    split_dataset()
+    # create_dataset()
+    # split_dataset()
+    
+    PATH_VIDEO = './Dataset/dataset/videos/train/'
+    path_labels = './Dataset/dataset/labels/train/'
+    
+    
+    labels = os.listdir(path_labels)
+    i=0
+    c = 0
+
+    to_remove = []
+
+    for label in labels:
+  
+        print(f"processing label {c}/{len(labels)}")
+        c+=1
+        key_label  = os.path.splitext(label)[0]
+        key_label = normalize(key_label)
+        matched_video = None
+        found = False
+
+        for video in os.listdir(PATH_VIDEO):
+            name_no_ext = os.path.splitext(video)[0]
+            if normalize(name_no_ext) == key_label:
+                matched_video = os.path.join(PATH_VIDEO, name_no_ext)
+                found = True
+                break
+        
+        if not found:
+            to_remove.append(label)
+            i+=1
+    
+    for elem in to_remove:
+        os.remove(path_labels+elem)
+    print("Eliminated " + str(i) + " labels")
+          
+
+    
