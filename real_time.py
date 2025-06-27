@@ -7,13 +7,22 @@ from PIL import  Image
 import time
 
 
-import torch
-import cv2
-from transformers import pipeline
-from Model import ROIClassifier
-from pipeline import *
-from PIL import  Image
-import time
+def to_tti_name(name):
+    if name == None:
+      return 'unknown_tti'
+    name_to_id = {
+        12 : 'unknown_tti',
+        13: 'coagulation',
+        14: 'other',
+        15: 'retract and grab',
+        16: 'blunt dissection',
+        17: 'energy - sharp dissection',
+        18: 'staple',
+        19: 'retract and push',
+        29: 'cut - sharp dissection',
+    }
+
+    return name_to_id[name]
 
 
 def real(video, yolo_model, depth, tti_classifier, device):
@@ -25,7 +34,7 @@ def real(video, yolo_model, depth, tti_classifier, device):
 
     # VideoWriter to save the processed video
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for mp4
-    out = cv2.VideoWriter('processed_video.mp4', fourcc, 20.0, (W_full, H_full))
+    out = cv2.VideoWriter('processed_video.mp4', fourcc,15.0, (W_full, H_full))
     
     while success:
         before = time.time()
@@ -80,7 +89,7 @@ def real(video, yolo_model, depth, tti_classifier, device):
             cv2.rectangle(overlay_mask, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
             #Added the following line
-            cv2.putText(overlay_mask, f"Class: {tti_class}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)  
+            cv2.putText(overlay_mask, f"Class: {to_tti_name(int(tissue_class))}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)  
         
         if overlay_mask is not None:
             # cv2.imshow("video", overlay_mask)
@@ -104,8 +113,8 @@ def real(video, yolo_model, depth, tti_classifier, device):
 
 
 if __name__ == "__main__":
-    model = load_yolo_model('./runs/segment/train/weights/best.pt')
-    video = './Dataset/video_dataset/videos/test/Adnanset-Lc 107-005.mp4'
+    model = load_yolo_model('./runs_YOLOn_200/segment/train/weights/best.pt')
+    video = './Dataset/video_dataset/videos/test/Adnanset-Lc 121-004.mp4'
 
     pipe = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
    
