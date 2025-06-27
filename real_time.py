@@ -105,7 +105,7 @@ def real(video, yolo_model, depth, tti_classifier, device):
 
 if __name__ == "__main__":
     model = load_yolo_model('./runs/segment/train/weights/best.pt')
-    video = './Dataset/Video/test/Adnanset-Lc 1-007.mp4'
+    video = './Dataset/video_dataset/videos/test/Adnanset-Lc 107-005.mp4'
 
     pipe = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
    
