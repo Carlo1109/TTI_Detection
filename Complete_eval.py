@@ -83,7 +83,7 @@ def generate_predictions(yolo_model,depth_model,tti_classifier):
 
 
 if __name__ == "__main__":
-    model = load_yolo_model('./runs_yolon_new/segment/train/weights/best.pt')
+    model = load_yolo_model('./runs_YOLOn_200/segment/train/weights/best.pt')
     depth = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     tti_class = ROIClassifier(2)

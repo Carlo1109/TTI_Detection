@@ -235,8 +235,8 @@ if __name__ == "__main__":
     
     y_pred , y_true = generate_predictions(model,depth,tti_class)
 
-    with open("data.pkl", "wb") as f:
-        pickle.dump([y_true,y_pred], f)
+    # with open("data.pkl", "wb") as f:
+    #     pickle.dump([y_true,y_pred], f)
         
     # with open("./data.pkl",'rb') as f:
     #     data = pickle.load(f)
