@@ -15,11 +15,11 @@ import json
 from sklearn.metrics import accuracy_score , f1_score ,precision_recall_curve ,precision_score ,recall_score ,confusion_matrix ,balanced_accuracy_score
 import pickle
 
-LABELS_PATH = './Dataset/out/'
-VIDEOS_PATH = './Dataset/Video/test/'
+LABELS_PATH = './Dataset/video_dataset/labels/val/'
+VIDEOS_PATH = './Dataset/video_dataset/videos/val/'
 
-IMAGES_TEST = './Dataset/dataset/images/test/'
-LABELS_TEST = './Dataset/dataset/labels/test/'
+IMAGES_TEST = './Dataset/evaluation/images/'
+LABELS_TEST = './Dataset/evaluation/labels/'
 
 
 def create_test():
@@ -70,7 +70,7 @@ def create_test():
             if len_dict < 2:
                 continue
 
-            frame.save(file_path+'/dataset/images/test/'+ f'video{count:04d}_frame{idx:04d}.png', format='PNG')
+            frame.save(file_path+'/evaluation/images/'+ f'video{count:04d}_frame{idx:04d}.png', format='PNG')
             
             tissue_mask = None
             tool_mask = None
@@ -171,7 +171,7 @@ def create_test():
                                     # y_train.append(0) 
                                     to_write += '0' + ' ' + str(to_tool_id(data['labels'][str(idx)][j]['instrument_type'])) + ' ' + str(tti_class)  + ' ' + '\n'
               
-            with open(file_path+'/dataset/labels/test/'+ f'video{count:04d}_frame{idx:04d}.txt', 'w', encoding='utf-8') as f:
+            with open(file_path+'/evaluation/labels/'+ f'video{count:04d}_frame{idx:04d}.txt', 'w', encoding='utf-8') as f:
                 f.write(to_write) 
                                                         
         count += 1
@@ -226,7 +226,7 @@ def generate_predictions(yolo_model,depth_model,tti_classifier):
 
 
 if __name__ == "__main__":
-    model = load_yolo_model('./runs_YoloN/segment/train/weights/best.pt')
+    model = load_yolo_model('./runs_yolon_new/segment/train/weights/best.pt')
     depth = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     tti_class = ROIClassifier(2)
@@ -235,8 +235,8 @@ if __name__ == "__main__":
     
     y_pred , y_true = generate_predictions(model,depth,tti_class)
 
-    # with open("data.pkl", "wb") as f:
-    #     pickle.dump([y_true,y_pred], f)
+    with open("data.pkl", "wb") as f:
+        pickle.dump([y_true,y_pred], f)
         
     # with open("./data.pkl",'rb') as f:
     #     data = pickle.load(f)
@@ -244,15 +244,15 @@ if __name__ == "__main__":
     # y_true , y_pred = data
     
 
-    l = len(y_true)
-    c = 0
-    for i in range(l):
-        if c == 930:
-            break
-        if y_true[i] == 1:
-            del y_true[i]
-            del y_pred[i]
-        c+=1
+    # l = len(y_true)
+    # c = 0
+    # for i in range(l):
+    #     if c == 930:
+    #         break
+    #     if y_true[i] == 1:
+    #         del y_true[i]
+    #         del y_pred[i]
+    #     c+=1
         
         
     zeros = 0

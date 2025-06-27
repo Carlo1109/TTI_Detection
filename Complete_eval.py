@@ -8,11 +8,9 @@ import os
 from sklearn.metrics import accuracy_score , f1_score ,precision_score ,recall_score ,confusion_matrix ,balanced_accuracy_score
 import pickle
 
-LABELS_PATH = './Dataset/out/'
-VIDEOS_PATH = './Dataset/Video/test/'
 
-IMAGES_TEST = './Dataset/dataset/images/test/'
-LABELS_TEST = './Dataset/dataset/labels/test/'
+IMAGES_TEST = './Dataset/evaluation/images/'
+LABELS_TEST = './Dataset/evaluation/labels/'
 
 
 
@@ -85,7 +83,7 @@ def generate_predictions(yolo_model,depth_model,tti_classifier):
 
 
 if __name__ == "__main__":
-    model = load_yolo_model('./runs_YoloN/segment/train/weights/best.pt')
+    model = load_yolo_model('./runs_yolon_new/segment/train/weights/best.pt')
     depth = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     tti_class = ROIClassifier(2)
