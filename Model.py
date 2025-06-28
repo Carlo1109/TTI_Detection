@@ -30,30 +30,31 @@ class AutoEncoder(nn.Module):
         super().__init__()
       
         self.encoder = nn.Sequential(
-            nn.Conv2d(4, 4, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.Conv2d(4, 4, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(4),
             nn.ReLU(),
-            nn.Conv2d(4, 4, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.Conv2d(4, 4, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(4),
             nn.ReLU(),
-            nn.Conv2d(4, 4, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.Conv2d(4, 4, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(4),
             nn.ReLU(),
             nn.Conv2d(4, 3, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(4),
+            nn.BatchNorm2d(3),
+            nn.ReLU(),
         )
         
         self.decoder = nn.Sequential(
-            nn.Conv2d(3, 3, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.Conv2d(3, 3, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(3),
             nn.ReLU(),
-            nn.Conv2d(3, 3, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.Conv2d(3, 3, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(3),
             nn.ReLU(),
-            nn.Conv2d(3, 3, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.Conv2d(3, 3, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(3),
             nn.ReLU(),
-            nn.ConvTranspose2d(3, 4, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.ConvTranspose2d(3, 4, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(4),
         )
         
@@ -63,4 +64,3 @@ class AutoEncoder(nn.Module):
         out = self.decoder(en)
   
         return out
-
