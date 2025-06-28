@@ -160,15 +160,15 @@ def end_to_end_pipeline(image, yolo_model, depth_model, tti_classifier, device):
     detections = yolo_inference(yolo_model, image)
 
     # depth_map = depth_model(image)
-    # depth_map = np.array(depth_model(image)["depth"])
+    depth_map = np.array(depth_model(image)["depth"])
     
 
-    depth_map = np.array(depth_model(Image.fromarray(image))["depth"])
+    # depth_map = np.array(depth_model(Image.fromarray(image))["depth"])
 
     # Step 2: Pairing
     pairs = find_tool_tissue_pairs(detections)
 
-    # image = cv2.imread(image,cv2.IMREAD_COLOR)
+    image = cv2.imread(image,cv2.IMREAD_COLOR)
    
     
     tti_predictions = []

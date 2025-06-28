@@ -25,21 +25,42 @@ class ROIClassifier(nn.Module):
     
     
 
-class ROIClassifierNoDepth(nn.Module):
-    def __init__(self, num_hoi_classes):
+class AutoEncoder(nn.Module):
+    def __init__(self):
         super().__init__()
       
-        self.pre_conv = nn.Conv2d(4, 3, kernel_size=1, stride=1, padding=0, bias=False)
+        self.encoder = nn.Sequential(
+            nn.Conv2d(4, 4, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(4),
+            nn.ReLU(),
+            nn.Conv2d(4, 4, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(4),
+            nn.ReLU(),
+            nn.Conv2d(4, 4, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(4),
+            nn.ReLU(),
+            nn.Conv2d(4, 3, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(4),
+        )
         
-        self.backbone = models.resnet18(pretrained=True)
-        self.backbone.fc = nn.Identity()
+        self.decoder = nn.Sequential(
+            nn.Conv2d(3, 3, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(3),
+            nn.ReLU(),
+            nn.Conv2d(3, 3, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(3),
+            nn.ReLU(),
+            nn.Conv2d(3, 3, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(3),
+            nn.ReLU(),
+            nn.ConvTranspose2d(3, 4, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(4),
+        )
         
-        self.fc = nn.Linear(512, num_hoi_classes)
         
     def forward(self, x):
-        
-        x = self.pre_conv(x)         
-        features = self.backbone(x)   
-        out = F.sigmoid(self.fc(features))
+        en = self.encoder(x)
+        out = self.decoder(en)
+  
         return out
 
