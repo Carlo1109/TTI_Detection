@@ -24,6 +24,7 @@ def generate_predictions(yolo_model,depth_model,tti_classifier):
     i = 1
     wrong_tti = 0
     wrong_class = 0
+    no_pred = 0
     for img in images:
         print(f"Predicting image {i}/{l}")
         i+=1
@@ -50,6 +51,7 @@ def generate_predictions(yolo_model,depth_model,tti_classifier):
         if len(tti_predictions) == 0 and len(d) != 0:
             y_pred.append(0)
             y_true.append(1)
+            no_pred += 1
         
         for elem in tti_predictions:
             tool_class = elem['tool']['class']
@@ -77,6 +79,7 @@ def generate_predictions(yolo_model,depth_model,tti_classifier):
     
     print("Wrong tti: ",wrong_tti)
     print("Wrong class: ",wrong_class)
+    print("No pred: ",no_pred)
     return y_pred , y_true
 
 
