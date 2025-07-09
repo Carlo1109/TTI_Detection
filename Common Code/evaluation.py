@@ -14,12 +14,13 @@ from create_dataset import to_tool_id , to_tti_id
 import json
 from sklearn.metrics import accuracy_score , f1_score ,precision_recall_curve ,precision_score ,recall_score ,confusion_matrix ,balanced_accuracy_score
 import pickle
+from VIT import ROIClassifierViT
 
-LABELS_PATH = './Dataset/video_dataset/labels/val/'
-VIDEOS_PATH = './Dataset/video_dataset/videos/val/'
+LABELS_PATH = '../Dataset/video_dataset/labels/val/'
+VIDEOS_PATH = '../Dataset/video_dataset/videos/val/'
 
-IMAGES_TEST = './Dataset/evaluation/images/'
-LABELS_TEST = './Dataset/evaluation/labels/'
+IMAGES_TEST = '../Dataset/evaluation/images/'
+LABELS_TEST = '../Dataset/evaluation/labels/'
 
 
 def create_test():
@@ -226,11 +227,14 @@ def generate_predictions(yolo_model,depth_model,tti_classifier):
 
 
 if __name__ == "__main__":
-    model = load_yolo_model('./runs_yolon_new/segment/train/weights/best.pt')
+    model = load_yolo_model('./runs_OLD_DATASET/segment/train/weights/best.pt')
     depth = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    tti_class = ROIClassifier(2)
-    tti_class.load_state_dict(torch.load('ROImodel.pt',map_location=device))
+    # tti_class = ROIClassifier(2)
+    # tti_class.load_state_dict(torch.load('ROImodel.pt',map_location=device))
+    tti_class = ROIClassifierViT(2)
+    tti_class.load_state_dict(torch.load('ViT.pt',map_location=device))
+   
     tti_class.to(device)
     
     y_pred , y_true = generate_predictions(model,depth,tti_class)

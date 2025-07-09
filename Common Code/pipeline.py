@@ -9,6 +9,7 @@ from PIL import Image
 from Model import ROIClassifier
 import matplotlib.pyplot as plt
 import time
+import torch.nn.functional as F
 
 
 def load_yolo_model(model_path):

@@ -7,7 +7,7 @@ from pipeline import *
 import os
 from sklearn.metrics import accuracy_score , f1_score ,precision_score ,recall_score ,confusion_matrix ,balanced_accuracy_score
 import pickle
-
+from VIT import ROIClassifierViT
 
 IMAGES_TEST = '../Dataset/evaluation/images/'
 LABELS_TEST = '../Dataset/evaluation/labels/'
@@ -91,7 +91,9 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # tti_class = ROIClassifier(2)
     # tti_class.load_state_dict(torch.load('ROImodel.pt',map_location=device))
-    tti_class =  torch.load("./ViT.pt")
+    tti_class = ROIClassifierViT(2)
+    tti_class.load_state_dict(torch.load('ViT.pt',map_location=device))
+   
     tti_class.to(device)
     
     y_pred , y_true = generate_predictions(model,depth,tti_class)
