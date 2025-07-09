@@ -22,8 +22,8 @@ if __name__ == '__main__':
     enc.eval()
     
     depth_model = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
-    IMAGES = './Dataset/yolo_dataset/images/train/'
-    OUT = './Dataset/encoder_output/images/train/'
+    IMAGES = './Dataset/yolo_dataset/images/val/'
+    OUT = './Dataset/encoder_output/images/val/'
     
     images = os.listdir(IMAGES)
     c=1
