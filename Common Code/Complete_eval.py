@@ -89,10 +89,9 @@ if __name__ == "__main__":
     model = load_yolo_model('./runs_OLD_DATASET/segment/train/weights/best.pt')
     depth = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    # tti_class = ROIClassifier(2)
-    # tti_class.load_state_dict(torch.load('ROImodel.pt',map_location=device))
-    tti_class = ROIClassifierViT(2)
-    tti_class.load_state_dict(torch.load('ViT.pt',map_location=device))
+    tti_class = ROIClassifier(2)
+    tti_class.load_state_dict(torch.load('ROImodel.pt',map_location=device))
+
    
     tti_class.to(device)
     
