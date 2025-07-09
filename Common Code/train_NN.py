@@ -32,7 +32,7 @@ def train_model(model, optimizer, loss_fn, X_train, y_train, epochs=30, batch_si
     # train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     
     dataset = CustomDataset(X_train, y_train) #x_train.npy file
-    train_loader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=True, num_workers=2)
+    train_loader = torch.utils.data.DataLoader(dataset, batch_size, shuffle=True, num_workers=2)
 
     os.makedirs("./model_folder", exist_ok=True)
 
