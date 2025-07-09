@@ -1,5 +1,5 @@
 import torch
-from transformers import pipeline
+from transformers import pipeline, ViTForImageClassification
 from PIL import Image
 from Model import ROIClassifier
 import matplotlib.pyplot as plt
@@ -9,8 +9,8 @@ from sklearn.metrics import accuracy_score , f1_score ,precision_score ,recall_s
 import pickle
 
 
-IMAGES_TEST = './Dataset/evaluation/images/'
-LABELS_TEST = './Dataset/evaluation/labels/'
+IMAGES_TEST = '../Dataset/evaluation/images/'
+LABELS_TEST = '../Dataset/evaluation/labels/'
 
 
 
@@ -89,8 +89,9 @@ if __name__ == "__main__":
     model = load_yolo_model('./runs_OLD_DATASET/segment/train/weights/best.pt')
     depth = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    tti_class = ROIClassifier(2)
-    tti_class.load_state_dict(torch.load('ROImodel.pt',map_location=device))
+    # tti_class = ROIClassifier(2)
+    # tti_class.load_state_dict(torch.load('ROImodel.pt',map_location=device))
+    tti_class =  torch.load("./ViT.pt")
     tti_class.to(device)
     
     y_pred , y_true = generate_predictions(model,depth,tti_class)
