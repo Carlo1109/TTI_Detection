@@ -233,7 +233,7 @@ if __name__ == "__main__":
     # tti_class = ROIClassifier(2)
     # tti_class.load_state_dict(torch.load('ROImodel.pt',map_location=device))
     tti_class = ROIClassifierViT(2)
-    tti_class.load_state_dict(torch.load('ViT.pt',map_location=device))
+    tti_class.load_state_dict(torch.load('ViT2.pt',map_location=device))
    
     tti_class.to(device)
     

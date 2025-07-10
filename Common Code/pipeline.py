@@ -150,7 +150,7 @@ def extract_union_roi(image, tool_mask, tissue_mask, depth_map=None):
         return None
 
     roi = np.concatenate([roi, merged_mask*255], axis=-1)
-    
+
     return roi
 
 
@@ -182,6 +182,7 @@ def end_to_end_pipeline(image, yolo_model, depth_model, tti_classifier, device):
             return [] ,[]
         # Prepare input for ROI classifier
         roi_tensor = torch.from_numpy(roi).permute(2, 0, 1).unsqueeze(0).float() / 255.0
+        roi_tensor = F.interpolate(roi_tensor, size=(224, 224), mode='bilinear', align_corners=False)
         roi_tensor = roi_tensor.to(device)
         
         # mean_rgb = [0.485, 0.456, 0.406]
