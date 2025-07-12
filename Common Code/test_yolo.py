@@ -1,23 +1,84 @@
-from ultralytics import YOLO
-from transformers import pipeline
-from PIL import Image 
+import torch
+from transformers import pipeline, ViTForImageClassification
+from PIL import Image
+from Model import ROIClassifier
+import matplotlib.pyplot as plt
+from pipeline import *
+import os
+from sklearn.metrics import accuracy_score , f1_score ,precision_score ,recall_score ,confusion_matrix ,balanced_accuracy_score
+import pickle
+from VIT import ROIClassifierViT
+
+IMAGES_TEST = '../Dataset/evaluation/images/'
+LABELS_TEST = '../Dataset/evaluation/labels/'
+
+
+
+def generate_predictions(yolo_model):
+
+    images = os.listdir(IMAGES_TEST)
+    
+    l = len(images)
+    i = 1
+
+    wrong_class = 0
+    no_pred = 0
+    good_class = 0
+    good_pred = 0
+    
+    for img in images:
+        print(f"Predicting image {i}/{l}")
+        i+=1
+        label = img.replace('.png', '.txt')
+        # d = {(tool_class , tti_class) : is_tti}
+        class_list = []
+        with open(LABELS_TEST + label, 'r', encoding='utf-8') as f:
+            for line in f:
+                if not line:
+                    continue
+                line = line.strip()
+      
+                tool_class = int(line[2])
+                tti_class = int(line[4:])
+                is_tti = int(line[0])
+         
+                class_list.append(tool_class)
+                class_list.append(tti_class)
+                
+    
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        predictions = yolo_model.predict(IMAGES_TEST + img,verbose=False)
+        
+       
+        cl = predictions[0].boxes.cls.cpu().detach().numpy()
+       
+        for c in cl:
+            if c  not in class_list:
+                wrong_class += 1
+            else:
+                good_class += 1
+        
+        pred_len = len(cl)
+        truth_len = len(class_list)
+
+        diff = abs(pred_len-truth_len)
+        
+        if diff == 0:
+            good_pred += 1
+        
+        no_pred += diff
+
+    print("Wrong classes: ",wrong_class)
+    print("No preds: ",no_pred)
+    print("Good classes: ",good_class)
+    print("Preds: ",good_pred)
+    
+
+
+
 
 if __name__ == "__main__":
-   
-
-    # pipe = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
-    # image = Image.open('./Real.png')
-    # depth = pipe(image)["depth"]
-    # depth.show()
-    # # Image.show(depth)
-  
-    model = YOLO('./runs/segment/train/weights/best.pt')
+    model = load_yolo_model('./runs_OLD_DATASET/segment/train/weights/best.pt')
     
-    # res = model.predict('./Dataset/dataset/images/test/video0014_frame0011.png')
-    model.predict('./Dataset/LC 5 sec clips 30fps/Adnanset-Lc 10-003.mp4',show=True)
-    # print(len(res[0]))
-    # for r in res:
-    #     pass
-        # print(len(r.masks.data))
-        # print(r.boxes.cls)
-        # print(r.masks.data)     
+    generate_predictions(model)
+
