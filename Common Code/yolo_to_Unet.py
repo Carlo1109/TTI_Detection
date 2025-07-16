@@ -58,11 +58,11 @@ def generate_masks_for_dataset(imgs_path, labels_path, output_dir):
         mask_output_path = os.path.join(output_dir, img_file.replace(".png", "_mask.png"))
         cv2.imwrite(mask_output_path, mask.astype(np.uint8))  
         i+=1
-        print(f"Processing: {i}/12216")
+        print(f"Processing: {i}/3054")
 
-imgs_path = "../Dataset/dataset/images/train"
-labels_path = "../Dataset/dataset/labels/train"
+imgs_path = "../Dataset/dataset/images/val"
+labels_path = "../Dataset/dataset/labels/val"
 
-output_dir = "../Dataset/dataset_uNet/masks/train"
+output_dir = "../Dataset/dataset_uNet/masks/val"
 
 generate_masks_for_dataset(imgs_path, labels_path, output_dir)
