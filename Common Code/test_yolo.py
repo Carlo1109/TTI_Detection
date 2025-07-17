@@ -42,8 +42,10 @@ def generate_predictions(yolo_model):
                 tti_class = int(line[4:])
                 is_tti = int(line[0])
          
-                class_list.append(tool_class)
-                class_list.append(tti_class)
+                if tool_class not in class_list:
+                    class_list.append(tool_class)
+                if tti_class not in class_list:
+                    class_list.append(tti_class)
                 
     
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -60,6 +62,7 @@ def generate_predictions(yolo_model):
         
         pred_len = len(cl)
         truth_len = len(class_list)
+        print(class_list)
 
         diff = abs(pred_len-truth_len)
         
