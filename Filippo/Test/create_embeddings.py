@@ -45,22 +45,29 @@ def create_embeddings():
     for image in images:
         print(f'processing image {k}/{len(images)} ----- {image}')
         masks_info , img = segment(sam_model,image)
+        all_embeddings = []
         for i, info in enumerate(masks_info):
             mask = info["segmentation"]  
             crop = img.copy(); crop[~mask] = 0
+            x, y, w, h = cv2.boundingRect(mask.astype(np.uint8))
+
+            crop = crop[y:y+h, x:x+w]
             
+
             pil_crop = Image.fromarray(crop)
             img_tensor = transform(pil_crop).unsqueeze(0).to(DEVICE)
             
             with torch.no_grad():
                 feats = dinov2_vits14_reg(img_tensor)     
-                # global_emb = torch.nn.functional.adaptive_avg_pool2d(feats, (1,1)).squeeze().cpu().numpy()
-                
-            print(feats)
-            # print(global_emb)
-        exit()
+                feats = np.array(feats[0].cpu().numpy()).reshape(1, -1)
+                print(feats)
+                exit()
+            all_embeddings.append(feats)
+            # print(feats)
+        
         
         k+=1
+    return np.array(all_embeddings)
     
     
 
@@ -69,4 +76,5 @@ def create_embeddings():
 
 if __name__ == "__main__":
 
-    create_embeddings()
+    emb = create_embeddings()
+    np.save('embeddings.npy',emb)
