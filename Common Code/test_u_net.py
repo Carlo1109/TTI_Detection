@@ -10,7 +10,7 @@ from typing import List, Tuple
 # ── Config ─────────────────────────────────────────────────────────────────────
 IMG_SIZE    = (256, 256)
 DEVICE      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-CHECKPOINT  = "segformer_model.pth"
+CHECKPOINT  = "segformer_depth_model.pth"
 YOLO_WEIGHTS= "./runs_OLD_DATASET/segment/train/weights/best.pt"  # il tuo file di pesi YOLOv11-seg
 NUM_CLASSES = 22                    # 21 vere classi + 1 background
 BG_IDX      = NUM_CLASSES - 1       # indice della classe background (da ignorare)
@@ -35,7 +35,7 @@ def load_unet(ckpt_path: str) -> torch.nn.Module:
     model = smp.Segformer(
         encoder_name="mit_b2",
         encoder_weights="imagenet",
-        in_channels=3,
+        in_channels=4,
         classes=22
     )
     model.load_state_dict(sd)
