@@ -2,8 +2,8 @@ import cv2
 import os
 
 
-VIDEO_FOLDER = '../../Dataset/video_dataset/videos/train/'
-OUTPUT_FOLDER = '../Full Dataset/train/'
+VIDEO_FOLDER = '../../Dataset/video_dataset/videos/val'
+OUTPUT_FOLDER = '../Full Dataset/val/'
 
 
 def _load_video(video_path):

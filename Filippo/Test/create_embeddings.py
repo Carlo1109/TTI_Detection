@@ -14,20 +14,106 @@ CHECKPOINT  = "../sam2/checkpoints/sam2.1_hiera_small.pt"
 IMAGES_FOLDER = '../Full Dataset/train/'
 DEVICE  = "cuda"
 
+def compute_iou(mask1, mask2):
+    intersection = np.logical_and(mask1, mask2).sum()
+    union = np.logical_or(mask1, mask2).sum()
+
+    if union == 0:
+        return 0.0  
+
+    return intersection / union
+
+
+
+def is_glare(mask, image, glare_thresh=230):
+    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    vals = gray[mask]
+    bright_count = np.count_nonzero(vals > glare_thresh)
+    frac = bright_count / vals.size
+    if vals.size == 0:
+        return True
+    
+    if frac > 0.17:
+        return True
+    return False
+
+def is_dark(mask, image, dark_thresh=35):
+    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    vals = gray[mask]
+    dark_count = np.count_nonzero(vals < dark_thresh)
+    frac = dark_count / vals.size
+    if vals.size == 0:
+        return True
+ 
+    if frac > 0.85:
+        return True
+    return False
+
+
+
+
 def segment(sam_model,image):
     img = cv2.imread(IMAGES_FOLDER + image)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     masks_info = sam_model.generate(img)
-    return masks_info , img
+
+    masks_to_return = []
+    used = []
+    print("MASK NUMBER: " , len(masks_info))
+ 
+    print(img.shape)
+    
+    img_area = img.shape[0]*img.shape[1]
+    for i, info in enumerate(masks_info):
+        if i in used:
+            continue
+        mask = info["segmentation"]  
+        
+        area = mask.sum()
+
+        glare = is_glare(mask,img)
+        dark = is_dark(mask,img)
+
+        if area < 1800 or area >= img_area/2  or glare or dark:
+            continue
+        
+        found = False
+        for k in range(i+1,len(masks_info)):
+            if k in used:
+                continue
+                
+            mask2 = masks_info[k]['segmentation']
+            iou = compute_iou(mask, mask2)
+            
+            if iou > 0.9 and not found:
+                combined_mask = np.logical_or(mask, mask2)
+                found = True
+                used.append(k)
+            elif iou > 0.9 and found:
+                combined_mask = np.logical_or(mask, combined_mask)
+                used.append(k)
+        
+        if found:
+            masks_to_return.append(combined_mask)
+
+        elif i not in used:
+            masks_to_return.append(mask)
+            
+        used.append(i)
+    print("RETURNED MASKS: ", len(masks_to_return))
+    return masks_to_return , img
+
+
+
 
 def build_sam_mask_generator():
     sam = build_sam2(MODEL_CFG, CHECKPOINT).to(DEVICE).eval()
     mask_generator = SAM2AutomaticMaskGenerator(
         model=sam,
-        points_per_side=48,    
-        pred_iou_thresh=0.88,   
-        stability_score_thresh=0.88, 
-        box_nms_thresh=0.85
+        points_per_side=36,    
+        pred_iou_thresh=0.75,   
+        stability_score_thresh=0.75, 
+        box_nms_thresh=0.75
     )   
     return mask_generator
 
@@ -51,7 +137,7 @@ def create_embeddings():
         print(f'processing image {k}/{len(images)} ----- {image}')
         masks_info , img = segment(sam_model,image)
         for i, info in enumerate(masks_info):
-            mask = info["segmentation"]  
+            mask = info
             crop = img.copy(); crop[~mask] = 0
             x, y, w, h = cv2.boundingRect(mask.astype(np.uint8))
 

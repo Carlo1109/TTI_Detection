@@ -13,7 +13,7 @@ def expand_mask(mask, pixels):
 
 
 
-def depth_treshold(image, yolo_model, depth_model, device):
+def depth_treshold(image, yolo_model, depth_model):
     # Step 1: YOLOv11-seg and depth estimation
   
     detections = yolo_inference(yolo_model, image)
@@ -66,10 +66,10 @@ def depth_treshold(image, yolo_model, depth_model, device):
 
         tti = False
 
-        if intersection > 10:
+        if intersection > 0:
 
-            depth_tool = np.where(tool_mask_resized, depth_map, 0)
-            depth_tissue = np.where(tissue_mask_resized, depth_map, 0)
+            # depth_tool = np.where(tool_mask_resized, depth_map, 0)
+            # depth_tissue = np.where(tissue_mask_resized, depth_map, 0)
 
             # cv2.imshow("Tool Mask", depth_tool.astype(np.uint8) * 255)
             # cv2.imshow("Tissue Mask", depth_tissue.astype(np.uint8) * 255)
@@ -80,8 +80,8 @@ def depth_treshold(image, yolo_model, depth_model, device):
 
             im = np.where(intersection_pixels, depth_map, 0)
 
-            cv2.imshow("Intersection", im.astype(np.uint8) * 255)
-            cv2.waitKey(0)
+            # cv2.imshow("Intersection", im.astype(np.uint8) * 255)
+            # cv2.waitKey(0)
 
             depth_intersection = depth_map[intersection_pixels]
 
@@ -95,8 +95,8 @@ def depth_treshold(image, yolo_model, depth_model, device):
 
             
 
-            if max_depth - min_depth <= 0.7:
-                print("TTI")
+            if max_depth - min_depth <= 1:
+                # print("TTI")
                 tti = True
 
 
