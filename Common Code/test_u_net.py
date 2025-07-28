@@ -6,6 +6,8 @@ import segmentation_models_pytorch as smp
 from ultralytics import YOLO
 import matplotlib.patches as mpatches
 from typing import List, Tuple
+from transformers import pipeline
+from PIL import Image
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 IMG_SIZE    = (256, 256)
@@ -45,6 +47,11 @@ def preprocess_image(img_path: str) -> torch.Tensor:
     img = cv2.imread(img_path, cv2.IMREAD_COLOR)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     img = cv2.resize(img, IMG_SIZE, interpolation=cv2.INTER_LINEAR)
+    
+    pipe = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
+    depth_map = np.array(pipe(Image.fromarray(img))["depth"])
+    img = np.concatenate([img, depth_map[..., None]], axis=-1) 
+    
     tensor = torch.from_numpy(img.transpose(2, 0, 1)).float().div(255.0)
     return tensor.unsqueeze(0).to(DEVICE)
 
@@ -96,7 +103,7 @@ def make_overlay(orig_bgr: np.ndarray, col_mask: np.ndarray, alpha: float = 0.6)
 
 # ── Main: confronto fianco a fianco ───────────────────────────────────────────
 if __name__ == "__main__":
-    img_fp = "../Dataset/evaluation/images/video0349_frame0001.png"
+    img_fp = "../Dataset/evaluation/images/video0016_frame0084.png"
     orig_bgr = cv2.imread(img_fp)
 
     # UNet inference

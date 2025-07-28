@@ -6,9 +6,11 @@ import os
 import torch
 import torchvision.transforms as T
 from PIL import Image
+import matplotlib.pyplot as plt
+import random
 
-MODEL_CFG   = "../sam2/configs/sam2.1/sam2.1_hiera_l.yaml"
-CHECKPOINT  = "../sam2/checkpoints/sam2.1_hiera_large.pt"
+MODEL_CFG   = "../sam2/configs/sam2.1/sam2.1_hiera_s.yaml"
+CHECKPOINT  = "../sam2/checkpoints/sam2.1_hiera_small.pt"
 IMAGES_FOLDER = '../Full Dataset/train/'
 DEVICE  = "cuda"
 
@@ -23,9 +25,9 @@ def build_sam_mask_generator():
     mask_generator = SAM2AutomaticMaskGenerator(
         model=sam,
         points_per_side=48,    
-        pred_iou_thresh=0.74,   
-        stability_score_thresh=0.74, 
-        box_nms_thresh=0.7
+        pred_iou_thresh=0.88,   
+        stability_score_thresh=0.88, 
+        box_nms_thresh=0.85
     )   
     return mask_generator
 
@@ -42,27 +44,44 @@ def create_embeddings():
                         ])
             
     k = 0
+    masks = 0
+    random.shuffle(images)
+    all_embeddings = []
     for image in images:
         print(f'processing image {k}/{len(images)} ----- {image}')
         masks_info , img = segment(sam_model,image)
-        all_embeddings = []
         for i, info in enumerate(masks_info):
             mask = info["segmentation"]  
             crop = img.copy(); crop[~mask] = 0
             x, y, w, h = cv2.boundingRect(mask.astype(np.uint8))
 
             crop = crop[y:y+h, x:x+w]
-            
-
+        
             pil_crop = Image.fromarray(crop)
             img_tensor = transform(pil_crop).unsqueeze(0).to(DEVICE)
             
             with torch.no_grad():
-                feats = dinov2_vits14_reg(img_tensor)     
-                feats = np.array(feats[0].cpu().numpy()).reshape(1, -1)
-                print(feats)
-                exit()
-            all_embeddings.append(feats)
+                feats = dinov2_vits14_reg(img_tensor).squeeze(0).cpu().numpy()
+                # print(feats.shape)
+                plt.imshow(crop)
+                plt.show()
+                lab = int(input("1 for tool, 0 for tissue "))
+                if lab > 1:
+                    continue
+                compl_feat = np.append(feats,lab)
+                # print(compl_feat.shape)
+                # print(compl_feat)
+                
+       
+            all_embeddings.append(compl_feat)
+            masks += 1
+            print("mask n: ",masks)
+            
+        if masks >= 300:
+            all_embeddings = np.array(all_embeddings)
+            np.save("embedding_class.npy",all_embeddings)
+            print(all_embeddings.shape)
+            exit()
             # print(feats)
         
         
