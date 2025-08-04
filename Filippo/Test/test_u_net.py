@@ -4,15 +4,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import segmentation_models_pytorch as smp
 from ultralytics import YOLO
-import matplotlib.patches as mpatches
 from typing import List, Tuple
 from transformers import pipeline
 from PIL import Image
+import torchvision.transforms as T
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 IMG_SIZE    = (256, 256)
 DEVICE      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-CHECKPOINT  = "segformer_model.pth"
+CHECKPOINT  = "student_cycle_2.pt"
 YOLO_WEIGHTS= "./runs_OLD_DATASET/segment/train/weights/best.pt"  # il tuo file di pesi YOLOv11-seg
 NUM_CLASSES = 22                    # 21 vere classi + 1 background
 BG_IDX      = NUM_CLASSES - 1       # indice della classe background (da ignorare)
@@ -28,7 +28,7 @@ class_names: List[str] = [
     # 21 background
     "background"
 ]
-assert len(class_names) == NUM_CLASSES
+# assert len(class_names) == NUM_CLASSES
 
 # ── Funzioni UNet ────────────────────────────────────────────────────────────────
 def load_unet(ckpt_path: str) -> torch.nn.Module:
@@ -38,7 +38,7 @@ def load_unet(ckpt_path: str) -> torch.nn.Module:
         encoder_name="mit_b2",
         encoder_weights="imagenet",
         in_channels=3,
-        classes=22
+        classes=3
     )
     model.load_state_dict(sd)
     return model.to(DEVICE).eval()
@@ -55,10 +55,27 @@ def preprocess_image(img_path: str) -> torch.Tensor:
     tensor = torch.from_numpy(img.transpose(2, 0, 1)).float().div(255.0)
     return tensor.unsqueeze(0).to(DEVICE)
 
-def infer_mask_unet(model: torch.nn.Module, inp: torch.Tensor) -> np.ndarray:
+def infer_mask_unet(model: torch.nn.Module, input: torch.Tensor) -> np.ndarray:
+    
+    img = cv2.imread(input)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  
+    
+    tf_img = T.Compose([
+            T.ToPILImage(),
+            T.Resize(IMG_SIZE,  interpolation=Image.BILINEAR),
+            T.ToTensor(),  # [0,1] e C×H×W
+            T.Normalize(mean=(0.485,0.456,0.406),
+                        std=(0.229,0.224,0.225)),
+        ])
+    inp = tf_img(img).unsqueeze(0).to(DEVICE)
+    
     with torch.no_grad():
-        preds = model(inp).argmax(dim=1).squeeze(0)
-    return preds.cpu().numpy().astype(np.uint8)
+        preds = model(inp)
+        
+    mask = torch.nn.functional.interpolate(
+        preds,size = img.shape[:2], mode='bilinear',align_corners=False
+    )
+    return mask[0].argmax(0).cpu().numpy()
 
 # ── Funzioni YOLOv11-seg ─────────────────────────────────────────────────────────
 def load_yolo(weights_path: str):
@@ -103,13 +120,13 @@ def make_overlay(orig_bgr: np.ndarray, col_mask: np.ndarray, alpha: float = 0.6)
 
 # ── Main: confronto fianco a fianco ───────────────────────────────────────────
 if __name__ == "__main__":
-    img_fp = "../Dataset/evaluation/images/video0000_frame0051.png"
+    img_fp = "../../Dataset/evaluation/images/video0001_frame0035.png"
     orig_bgr = cv2.imread(img_fp)
 
     # UNet inference
     unet = load_unet(CHECKPOINT)
-    inp = preprocess_image(img_fp)
-    mask_unet = infer_mask_unet(unet, inp)
+    
+    mask_unet = infer_mask_unet(unet,img_fp)
 
     # YOLOv11-seg inference
     yolo = load_yolo(YOLO_WEIGHTS)
@@ -124,7 +141,7 @@ if __name__ == "__main__":
 
     # Visualizza
     fig, axes = plt.subplots(1, 2, figsize=(16, 8))
-    axes[0].imshow(overlay_unet); axes[0].set_title("UNet Segmentation"); axes[0].axis("off")
+    axes[0].imshow(mask_unet); axes[0].set_title("UNet Segmentation"); axes[0].axis("off")
     axes[1].imshow(overlay_yolo); axes[1].set_title("YOLOv11-seg Segmentation"); axes[1].axis("off")
     plt.tight_layout()
     plt.show()
