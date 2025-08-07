@@ -8,9 +8,13 @@ import torchvision.transforms as T
 from PIL import Image
 import matplotlib.pyplot as plt
 import random
+from transformers import pipeline
+from pycocotools import mask as mask_utils
+import json
+from sklearn import svm
 
-MODEL_CFG   = "../sam2/configs/sam2.1/sam2.1_hiera_s.yaml"
-CHECKPOINT  = "../sam2/checkpoints/sam2.1_hiera_small.pt"
+MODEL_CFG   = "../sam2/configs/sam2.1/sam2.1_hiera_b+.yaml"
+CHECKPOINT  = "../sam2/checkpoints/sam2.1_hiera_base_plus.pt"
 IMAGES_FOLDER = '../Full Dataset/train/'
 DEVICE  = "cuda"
 
@@ -175,11 +179,107 @@ def create_embeddings():
     return np.array(all_embeddings)
     
     
+def train_svm():
+    
+
+    svm_dataset =  np.load('embedding_classification.npy')
+
+    X = []
+    y = []
+    for e in svm_dataset:
+        X.append(e[:-1])
+        y.append(e[-1])
+
+    clf = svm.SVC()
+    clf.fit(X, y)
+    
+    return clf
+
+
+MAX_IMAGES = 20
+
+def test():
+    sam_model = build_sam_mask_generator()
+    images = os.listdir(IMAGES_FOLDER)
+    dinov2_vits14_reg = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14_reg').to(DEVICE)
+    transform = T.Compose([
+                            T.Resize(256, interpolation=T.InterpolationMode.BICUBIC),
+                            T.CenterCrop(224),
+                            T.ToTensor(),
+                            T.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
+                        ])
+            
+    k = 0
+
+    emb = []
+
+    clf = train_svm()
+    random.shuffle(images)
+    os.makedirs('train_masks',exist_ok=True)
+    os.makedirs('images',exist_ok=True)
+    for image in images:
+        print(f'processing image {k}/{len(images)} ----- {image}')
+        if k >= MAX_IMAGES:
+            break
+        masks_info , img = segment(sam_model,image)
+        H,W,_ = img.shape
+
+        annotations = []
+        for i, info in enumerate(masks_info):
+            mask = info  
+            crop = img.copy()
+            crop[~mask] = 200
+            x, y, w, h = cv2.boundingRect(mask.astype(np.uint8))
+
+            crop = crop[y:y+h, x:x+w]
+
+            pil_crop = Image.fromarray(crop)
+            img_tensor = transform(pil_crop).unsqueeze(0).to(DEVICE)
+            
+            with torch.no_grad():
+                feats = dinov2_vits14_reg(img_tensor).squeeze(0).cpu().numpy()   
+            cluster = clf.predict(feats.reshape(1, -1))[0]
+
+            mask = mask.astype(np.uint8)
+
+            rle = mask_utils.encode(np.asfortranarray(mask))
+            rle["counts"] = rle["counts"].decode("utf-8")
+
+            annotations.append({
+                "boxes": [x, y, x+w, y+h],
+                "labels": int(cluster)+1,
+                "mask": {
+                        "height": mask.shape[0],
+                        "width":  mask.shape[1],
+                        "rle":    rle
+                    }
+            })
+            
+
+        # cv2.imwrite(f'./train_masks/{image.replace(".jpg", ".png")}', empty_mask.astype(np.uint8))
+        output_path = f'./train_masks/{image.replace(".jpg", ".json")}'
+        with open(output_path, "w") as f:
+            json.dump(annotations, f)
+        cv2.imwrite(f'./images/{image.replace(".jpg", ".png")}', cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+
+         #        plt.imshow(crop)
+         #        plt.title(f"Cluster: {cluster}")
+         #        plt.axis("off")
+         #        plt.show()
+
+        k+=1
+
+
+
+
+
+
 
 
 
 
 if __name__ == "__main__":
 
-    emb = create_embeddings()
-    np.save('embeddings.npy',emb)
+    # emb = create_embeddings()
+    # np.save('embeddings.npy',emb)
+    test()
