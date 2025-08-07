@@ -12,7 +12,7 @@ import torchvision.transforms as T
 # ── Config ─────────────────────────────────────────────────────────────────────
 IMG_SIZE    = (256, 256)
 DEVICE      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-CHECKPOINT  = "student_cycle_2.pt"
+CHECKPOINT  = "teacher_cycle_1.pt"
 YOLO_WEIGHTS= "./runs_OLD_DATASET/segment/train/weights/best.pt"  # il tuo file di pesi YOLOv11-seg
 NUM_CLASSES = 22                    # 21 vere classi + 1 background
 BG_IDX      = NUM_CLASSES - 1       # indice della classe background (da ignorare)
@@ -71,10 +71,32 @@ def infer_mask_unet(model: torch.nn.Module, input: torch.Tensor) -> np.ndarray:
     
     with torch.no_grad():
         preds = model(inp)
+        probs = torch.softmax(model(inp), dim=1)  # [1, C, H_out, W_out]
+    conf, preds_1 = probs.max(1)      
+    pred_mask = preds_1.squeeze(0).cpu().numpy().astype(np.int8)  # H_out×W_out, valori 0…C-1
         
     mask = torch.nn.functional.interpolate(
         preds,size = img.shape[:2], mode='bilinear',align_corners=False
+        
     )
+    conf_map  = conf.squeeze(0).cpu().numpy() 
+    mask_filtered = np.full_like(pred_mask, fill_value=2, dtype=np.int8)
+
+    H,W,_ = img.shape
+    for c in np.unique(pred_mask):
+        if c == 2: 
+            continue  
+        
+        class_pixels = (pred_mask == c)
+        mean_conf = conf_map[class_pixels].mean()
+        if mean_conf >= 0.8:
+            mask_filtered[class_pixels] = c
+        
+    
+    mask_np = cv2.resize(mask_filtered, (W, H), interpolation=cv2.INTER_NEAREST)
+
+    
+    # return mask_np
     return mask[0].argmax(0).cpu().numpy()
 
 # ── Funzioni YOLOv11-seg ─────────────────────────────────────────────────────────
@@ -120,7 +142,7 @@ def make_overlay(orig_bgr: np.ndarray, col_mask: np.ndarray, alpha: float = 0.6)
 
 # ── Main: confronto fianco a fianco ───────────────────────────────────────────
 if __name__ == "__main__":
-    img_fp = "../../Dataset/evaluation/images/video0001_frame0035.png"
+    img_fp = "../../Dataset/evaluation/images/video0001_frame0150.png"
     orig_bgr = cv2.imread(img_fp)
 
     # UNet inference
