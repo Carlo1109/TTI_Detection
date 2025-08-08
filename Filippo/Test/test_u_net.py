@@ -2,17 +2,19 @@ import cv2
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-import segmentation_models_pytorch as smp
 from ultralytics import YOLO
 from typing import List, Tuple
 from transformers import pipeline
 from PIL import Image
 import torchvision.transforms as T
+import torchvision
+from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
+from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 IMG_SIZE    = (256, 256)
 DEVICE      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-CHECKPOINT  = "teacher_cycle_1.pt"
+CHECKPOINT  = "teacher_cycle_0.pt"
 YOLO_WEIGHTS= "./runs_OLD_DATASET/segment/train/weights/best.pt"  # il tuo file di pesi YOLOv11-seg
 NUM_CLASSES = 22                    # 21 vere classi + 1 background
 BG_IDX      = NUM_CLASSES - 1       # indice della classe background (da ignorare)
@@ -30,16 +32,36 @@ class_names: List[str] = [
 ]
 # assert len(class_names) == NUM_CLASSES
 
+
+def get_maskrcnn(num_classes=3):
+ 
+    model = torchvision.models.detection.maskrcnn_resnet50_fpn(weights="DEFAULT")
+    
+
+    if num_classes != -1:
+
+        # Get number of input features for the classifier.
+        in_features = model.roi_heads.box_predictor.cls_score.in_features
+
+        # Replace the pre-trained box predictor head with a new one.
+        model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
+
+        # Now get the number of input features for the mask classifier.
+        in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
+
+        hidden_layer = 256
+        # Replace the pre-trained mask predictor head with a new one.
+        model.roi_heads.mask_predictor = MaskRCNNPredictor(
+            in_features_mask, hidden_layer, num_classes
+        )
+
+    return model
+
 # ── Funzioni UNet ────────────────────────────────────────────────────────────────
 def load_unet(ckpt_path: str) -> torch.nn.Module:
     state = torch.load(ckpt_path, map_location=DEVICE)
     sd = state.get("model_state_dict", state)
-    model = smp.Segformer(
-        encoder_name="mit_b2",
-        encoder_weights="imagenet",
-        in_channels=3,
-        classes=3
-    )
+    model = get_maskrcnn()
     model.load_state_dict(sd)
     return model.to(DEVICE).eval()
 
@@ -64,40 +86,27 @@ def infer_mask_unet(model: torch.nn.Module, input: torch.Tensor) -> np.ndarray:
             T.ToPILImage(),
             T.Resize(IMG_SIZE,  interpolation=Image.BILINEAR),
             T.ToTensor(),  # [0,1] e C×H×W
-            T.Normalize(mean=(0.485,0.456,0.406),
-                        std=(0.229,0.224,0.225)),
         ])
     inp = tf_img(img).unsqueeze(0).to(DEVICE)
-    
+    model.eval()
     with torch.no_grad():
-        preds = model(inp)
-        probs = torch.softmax(model(inp), dim=1)  # [1, C, H_out, W_out]
-    conf, preds_1 = probs.max(1)      
-    pred_mask = preds_1.squeeze(0).cpu().numpy().astype(np.int8)  # H_out×W_out, valori 0…C-1
-        
-    mask = torch.nn.functional.interpolate(
-        preds,size = img.shape[:2], mode='bilinear',align_corners=False
-        
-    )
-    conf_map  = conf.squeeze(0).cpu().numpy() 
-    mask_filtered = np.full_like(pred_mask, fill_value=2, dtype=np.int8)
+        preds = model(inp)[0]
+    print(preds)
+    masks  = preds["masks"].squeeze(1).cpu().numpy()      # (N, H, W)
+    labels = preds["labels"].cpu().numpy().astype(int)    # (N,)
+    scores = preds["scores"].cpu().numpy()                # (N,)
 
-    H,W,_ = img.shape
-    for c in np.unique(pred_mask):
-        if c == 2: 
-            continue  
-        
-        class_pixels = (pred_mask == c)
-        mean_conf = conf_map[class_pixels].mean()
-        if mean_conf >= 0.8:
-            mask_filtered[class_pixels] = c
-        
-    
-    mask_np = cv2.resize(mask_filtered, (W, H), interpolation=cv2.INTER_NEAREST)
+    H, W ,_= img.shape
+    class_map = np.full((H, W), 0, dtype=np.uint8)
 
-    
-    # return mask_np
-    return mask[0].argmax(0).cpu().numpy()
+    for i in range(len(labels)):
+        if scores[i] < 0.5:
+            continue
+        bin_mask = masks[i] >= 0.5
+        class_map[bin_mask] = labels[i]
+
+    return class_map
+        
 
 # ── Funzioni YOLOv11-seg ─────────────────────────────────────────────────────────
 def load_yolo(weights_path: str):
@@ -142,7 +151,7 @@ def make_overlay(orig_bgr: np.ndarray, col_mask: np.ndarray, alpha: float = 0.6)
 
 # ── Main: confronto fianco a fianco ───────────────────────────────────────────
 if __name__ == "__main__":
-    img_fp = "../../Dataset/evaluation/images/video0001_frame0150.png"
+    img_fp = "../../Dataset/evaluation/images/video0000_frame0051.png"
     orig_bgr = cv2.imread(img_fp)
 
     # UNet inference
