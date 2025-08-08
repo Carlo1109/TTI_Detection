@@ -52,3 +52,4 @@ class CNN_TCN_Classifier(nn.Module):
         x = self.pool1d(x)               
         out = self.classifier(x)         
         return out
+
