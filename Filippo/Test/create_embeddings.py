@@ -77,8 +77,8 @@ def segment(sam_model,image):
 
         glare = is_glare(mask,img)
         dark = is_dark(mask,img)
-
-        if area < 1800 or area >= img_area/2  or glare or dark:
+        
+        if area < img_area * 0.15 or area >= img_area/2  or glare or dark:
             continue
         
         found = False
@@ -196,7 +196,7 @@ def train_svm():
     return clf
 
 
-MAX_IMAGES = 20
+MAX_IMAGES = 3000
 
 def test():
     sam_model = build_sam_mask_generator()
