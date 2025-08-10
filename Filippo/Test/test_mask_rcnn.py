@@ -38,7 +38,7 @@ def get_maskrcnn(num_classes=3):
 
     return model
 
-def vis(model,im,score_thresh=0.5, mask_thresh=0.5):
+def vis(model,im,score_thresh=0.1, mask_thresh=0.1):
     img = cv2.imread(im)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  
     
@@ -47,11 +47,11 @@ def vis(model,im,score_thresh=0.5, mask_thresh=0.5):
             T.Resize(IMG_SIZE,  interpolation=Image.BILINEAR),
             T.ToTensor(),  # [0,1] e C×H×W
         ])
-    inp = tf_img(img).unsqueeze(0).to(DEVICE)
+    inp = tf_img(img).to(DEVICE)
     model.eval()
     with torch.no_grad():
-        preds = model(inp)[0]
-    # print(preds)
+        preds = model([inp])[0]
+    print(preds)
     # masks  = preds["masks"].squeeze(1).cpu().numpy()      # (N, H, W)
     # labels = preds["labels"].cpu().numpy().astype(int)    # (N,)
     # scores = preds["scores"].cpu().numpy()                # (N,)
@@ -69,7 +69,11 @@ def vis(model,im,score_thresh=0.5, mask_thresh=0.5):
 
 
 if __name__ == '__main__':
-    model = get_maskrcnn()
+    # model = get_maskrcnn()
+    model = torchvision.models.detection.maskrcnn_resnet50_fpn_v2(weights="DEFAULT")
     model.to(DEVICE)
-    img_fp = "../../Dataset/evaluation/images/video0000_frame0051.png"
+    img_fp = "../../Dataset/evaluation/images/video0001_frame0000.png"
+    # sd = torch.load(CHECKPOINT, map_location=DEVICE)
+    # missing, unexpected = model.load_state_dict(sd, strict=False)
+
     vis(model,img_fp)
