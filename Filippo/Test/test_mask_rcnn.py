@@ -85,7 +85,7 @@ def vis(model,im,score_thresh=0.4, mask_thresh=0.4):
 if __name__ == '__main__':
     model = get_maskrcnn()
     model.to(DEVICE)
-    img_fp = "../../Dataset/evaluation/images/video0001_frame0000.png"
+    img_fp = "../../Dataset/evaluation/images/video0000_frame0051.png"
     sd = torch.load(CHECKPOINT, map_location=DEVICE)
     missing, unexpected = model.load_state_dict(sd, strict=False)
 
