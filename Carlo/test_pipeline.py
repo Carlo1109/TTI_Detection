@@ -4,37 +4,35 @@
 # =======================
 # CONFIGURAZIONE PERCORSI
 # =======================
-IMAGES_DIR   = "../Dataset/evaluation/images"              
-LABELS_DIR   = "../Dataset/evaluation/labels"              
-YOLO_WEIGHTS = "../Common Code/runs_OLD_DATASET/segment/train/weights/best.pt"      # pesi YOLO-seg
-TCN_WEIGHTS  = "model_TCN_new.pt"              # pesi modello CNN+TCN allenato
+VIDEOS_PATH  = "Dataset/video_dataset/videos/test"        # cartella con i video di test
+LABELS_PATH  = "Dataset/video_dataset/videos/test"        # cartella con i JSON corrispondenti
+TCN_WEIGHTS  = "model_TCN.pt"  # pesi del CNN+TCN
 
-# =============
-# ALTRI PARAMETRI
-# =============
-IMG_SIZE   = 224
-SEQ_LEN    = 5
-THRESHOLD  = 0.5
-USE_CUDA   = True        # forza CPU mettendo False
-DEPTH_DEV  = None        # None = 0 su GPU, -1 su CPU; oppure imposta un indice GPU intero
+# =======================
+# PARAMETRI
+# =======================
+IMG_SIZE     = 224
+SEQ_LEN      = 5
+BATCH_SIZE   = 16
+THRESHOLD    = 0.5
+USE_CUDA     = True
+DEPTH_DEV    = None   # None => 0 su GPU, -1 su CPU; oppure indice GPU esplicito (es. 0)
+MAX_FRAME    = None   # es. 150 per replicare il tuo filtro; None per ignorarlo
+PRINT_EVERY  = 50     # frequenza logging progressi
 
-import os
+import os, re, json
 import numpy as np
 from PIL import Image
 import cv2
 import torch
 import torch.nn as nn
 from torchvision.models import resnet18
-from ultralytics import YOLO
 from transformers import pipeline
 from sklearn.metrics import (
     accuracy_score, f1_score, precision_score, recall_score,
-    confusion_matrix, balanced_accuracy_score, classification_report
+    balanced_accuracy_score, confusion_matrix, classification_report
 )
 
-# ---------------------------
-# Modello CNN + TCN
-# ---------------------------
 class CNN_TCN_Classifier(nn.Module):
     def __init__(self, tcn_channels=[256, 128], sequence_length=SEQ_LEN, num_classes=1, pretrained=True):
         super().__init__()
@@ -78,122 +76,187 @@ class CNN_TCN_Classifier(nn.Module):
         B, T, C, H, W = x.shape
         x = x.view(B*T, C, H, W)
         x = self.cnn(x)
-        x = self.pool2d(x)              # (B*T, 512, 1, 1)
-        x = x.view(B, T, 512)           # (B, T, 512)
-        x = x.permute(0, 2, 1)          # (B, 512, T)
-        x = self.tcn(x)                 # (B, ch, T)
-        x = self.pool1d(x)              # (B, ch, 1)
-        out = self.classifier(x)        # (B, 1)
-        return out.squeeze(1)           # (B,)
+        x = self.pool2d(x)          # (B*T,512,1,1)
+        x = x.view(B, T, 512)       # (B,T,512)
+        x = x.permute(0, 2, 1)      # (B,512,T)
+        x = self.tcn(x)             # (B,ch,T)
+        x = self.pool1d(x)          # (B,ch,1)
+        out = self.classifier(x)    # (B,1)
+        return out.squeeze(1)       # (B,)
 
-# ---------------------------
-# Utilità YOLO e ROI
-# ---------------------------
-def load_yolo(model_path, device_index=None):
-    m = YOLO(model_path, verbose=False)
-    if device_index is not None and torch.cuda.is_available():
-        m.to(device_index)
-    return m
+def normalize(name: str) -> str:
+    return re.sub(r'[^A-Za-z0-9]', '', name).lower()
 
-def yolo_detect(yolo_model, image_bgr):
-    res = yolo_model.predict(image_bgr, verbose=False)[0]
-    if res.masks is None or res.boxes is None or len(res.boxes.cls) == 0:
-        return [], []
-    classes = res.boxes.cls.detach().cpu().numpy().astype(int).tolist()
-    masks = res.masks.data.detach().cpu().numpy().astype(np.uint8)  # [N,h,w] 0/1
-    return classes, masks
+def _load_video(path):
+    cap = cv2.VideoCapture(path)
+    if not cap.isOpened():
+        raise RuntimeError(f"Impossibile aprire il video: {path}")
+    return cap, int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-def find_mask_for_class(classes, masks, target_cls):
-    for i, c in enumerate(classes):
-        if c == target_cls:
-            return masks[i]
-    return None
+def _load_frame(cap, idx):
+    cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+    ok, frame = cap.read()
+    if not ok:
+        raise ValueError(f"Impossibile leggere frame {idx}")
+    return Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
-def extract_union_roi(image_bgr, tool_mask, tissue_mask, depth_map):
-    H, W = image_bgr.shape[:2]
-    if tool_mask is None or tissue_mask is None:
-        return None
-    tool_mask = tool_mask.astype(np.uint8)
-    tissue_mask = tissue_mask.astype(np.uint8)
-    union = np.clip(tool_mask + tissue_mask, 0, 1).astype(np.uint8)
+def parse_mask_string(mask_str, H, W):
+    if not mask_str or not mask_str.strip():
+        return np.zeros((0,2), np.int32)
+    tokens = mask_str.strip().split()
+    coords = []
+    for i in range(0, (len(tokens)//2)*2, 2):
+        try:
+            x = int(float(tokens[i]) * W)
+            y = int(float(tokens[i+1]) * H)
+        except:
+            continue
+        coords.append((max(0, min(W-1, x)), max(0, min(H-1, y))))
+    return np.array(coords, np.int32) if coords else np.zeros((0,2), np.int32)
+
+def get_polygon(poly_json):
+    s = ''
+    for v in poly_json.values():
+        s += f" {v['x']} {v['y']}"
+    return s
+
+def extract_union_roi(img_rgb, tool_poly_pts, tissue_poly_pts, depth_map):
+    H, W = img_rgb.shape[:2]
+    bin_tool = np.zeros((H, W), np.uint8)
+    if tool_poly_pts.size:
+        cv2.fillPoly(bin_tool, [tool_poly_pts], 1)
+    bin_tissue = np.zeros((H, W), np.uint8)
+    if tissue_poly_pts.size:
+        cv2.fillPoly(bin_tissue, [tissue_poly_pts], 1)
+    union = np.clip(bin_tool + bin_tissue, 0, 1).astype(np.uint8)
     if union.max() == 0:
         return None
     x, y, w, h = cv2.boundingRect(union)
-    rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)[y:y+h, x:x+w]  # HxWx3
+    roi_rgb = img_rgb[y:y+h, x:x+w]
     d = depth_map[y:y+h, x:x+w]
     if d.ndim == 2:
         d = d[..., None]
     merged_mask = (union[y:y+h, x:x+w][..., None] * 255).astype(np.uint8)
-    roi = np.concatenate([rgb, d, merged_mask], axis=-1)  # HxWx5
+    roi = np.concatenate([roi_rgb, d, merged_mask], axis=-1)  # HxWx5
     return roi
 
-def build_sample_from_image(image_path, y_cls, z_cls, yolo_model, depth_pipe, img_size, seq_len):
-    image_bgr = cv2.imread(image_path, cv2.IMREAD_COLOR)
-    if image_bgr is None:
-        return None
-    # YOLO
-    classes, masks = yolo_detect(yolo_model, image_bgr)
-    tool_mask = find_mask_for_class(classes, masks, y_cls)
-    tissue_mask = find_mask_for_class(classes, masks, z_cls)
-    if tool_mask is None or tissue_mask is None:
-        return None
-    # Depth
-    pil_img = Image.open(image_path).convert("RGB")
-    depth_out = depth_pipe(pil_img)
-    depth_map = np.array(depth_out["depth"]).astype(np.float32)  # ~[0,1]
-    # ROI 5 canali
-    roi = extract_union_roi(image_bgr, tool_mask, tissue_mask, depth_map)
-    if roi is None:
-        return None
-    # resize + normalizzazione
+def resize_norm_5ch(roi, img_size):
     roi = cv2.resize(roi, (img_size, img_size), interpolation=cv2.INTER_LINEAR).astype(np.float32)
     rgb = roi[..., :3] / 255.0
     depth = roi[..., 3:4]          # già ~[0,1]
     mask = roi[..., 4:5] / 255.0
     roi5 = np.concatenate([rgb, depth, mask], axis=-1)            # HxWx5
     roi5 = np.transpose(roi5, (2, 0, 1))                           # 5xHxW
-    # replica temporale
-    seq = np.stack([roi5 for _ in range(seq_len)], axis=0)         # T x 5 x H x W
-    return torch.from_numpy(seq).float()
+    return roi5
 
-def read_label_file(label_path):
-    with open(label_path, "r", encoding="utf-8") as f:
-        line = f.readline().strip()
-    for ch in [",", ";", "\t"]:
-        line = line.replace(ch, " ")
-    parts = [p for p in line.split() if p]
-    if len(parts) < 3:
-        raise ValueError(f"Label malformata: {label_path} -> '{line}'")
-    x = int(parts[0])   # 0/1
-    y = int(parts[1])   # classe tool
-    z = int(parts[2])   # classe tissue
-    return x, y, z
+def build_pairs_for_idx(objs, H, W):
 
-def main():
-    # device
+    pairs = []
+    len_dict = len(objs)
+
+    if len_dict == 2:
+        tissue_poly = None
+        tool_poly = None
+        for j in range(len_dict):
+            if not bool(objs[j]):
+                continue
+            if 'is_tti' in objs[j]:
+                if objs[j]['is_tti'] == 1:
+                    tissue_poly = parse_mask_string(get_polygon(objs[j]['tti_polygon']), H, W)
+                else:
+                    continue
+            else:
+                tool_poly = parse_mask_string(get_polygon(objs[j]['instrument_polygon']), H, W)
+        if tissue_poly is not None and tool_poly is not None:
+            pairs.append((1, tissue_poly, tool_poly))
+
+    elif len_dict == 3:
+        tissue_poly = None
+        tool_poly = None
+        non_tool_poly = None
+        # costruiamo le tre entità come nel tuo codice
+        for j in range(len_dict):
+            if not bool(objs[j]):
+                continue
+            if 'is_tti' in objs[j]:
+                if objs[j]['is_tti'] == 1:
+                    tissue_poly = parse_mask_string(get_polygon(objs[j]['tti_polygon']), H, W)
+                else:
+                    non_tool_poly = parse_mask_string(get_polygon(objs[j]['instrument_polygon']), H, W)
+            else:
+                tool_poly = parse_mask_string(get_polygon(objs[j]['instrument_polygon']), H, W)
+
+        if tissue_poly is not None and tool_poly is not None:
+            pairs.append((1, tissue_poly, tool_poly))
+        if tissue_poly is not None and non_tool_poly is not None:
+            pairs.append((0, tissue_poly, non_tool_poly))
+
+    else:
+        # len_dict >= 4
+        pair_list = []  # (tissue_poly, interaction_tool_name) — ci basta il poly; la label si deduce confrontando i nomi
+        # Prima raccogliamo tutti i tissue is_tti=1 con il loro interaction_tool
+        inter_list = []
+        for j in range(len_dict):
+            if not bool(objs[j]):
+                continue
+            if 'is_tti' in objs[j] and objs[j]['is_tti'] == 1:
+                tissue_poly = parse_mask_string(get_polygon(objs[j]['tti_polygon']), H, W)
+                interaction_tool_name = objs[j]['interaction_tool']
+                inter_list.append((tissue_poly, interaction_tool_name))
+
+        # Poi accoppiamo con gli strumenti presenti al frame
+        for tissue_poly, interaction_tool_name in inter_list:
+            for j in range(len_dict):
+                if not bool(objs[j]):
+                    continue
+                if 'is_tti' in objs[j]:
+                    continue
+                tool_poly = parse_mask_string(get_polygon(objs[j]['instrument_polygon']), H, W)
+                tool_name_here = objs[j]['instrument_type']
+                if tissue_poly is None or tool_poly is None:
+                    continue
+                x = 1 if (tool_name_here == interaction_tool_name) else 0
+                pairs.append((x, tissue_poly, tool_poly))
+
+    return pairs
+
+# ---------------------------
+# Depth pipeline
+# ---------------------------
+def make_depth_pipeline():
     use_cuda = USE_CUDA and torch.cuda.is_available()
-    device = torch.device("cuda:0" if use_cuda else "cpu")
-    print(f"Device modello: {device}")
-
-    # YOLO
-    yolo_device_index = 0 if use_cuda else None
-    print("Carico YOLO…")
-    yolo_model = load_yolo(YOLO_WEIGHTS, device_index=yolo_device_index)
-
-    # Depth pipeline
     if DEPTH_DEV is None:
         depth_dev = 0 if use_cuda else -1
     else:
         depth_dev = DEPTH_DEV if use_cuda else -1
-    print(f"Inizializzo depth-anything su device {depth_dev}…")
-    depth_pipe = pipeline(
+    print(f"[Depth] Inizializzo Depth-Anything V2 Small su device {depth_dev}…")
+    return pipeline(
         task="depth-estimation",
         model="depth-anything/Depth-Anything-V2-Small-hf",
         device=depth_dev
     )
 
-    # Modello TCN
-    print("Carico pesi TCN…")
+
+def build_sequence(cap, idx, tissue_poly_pts, tool_poly_pts, depth_map):
+    start = idx - (SEQ_LEN - 1)
+    end = idx
+    seq = []
+    for t in range(start, end + 1):
+        fr = _load_frame(cap, t)
+        np_fr = np.array(fr)  # RGB
+        roi = extract_union_roi(np_fr, tool_poly_pts, tissue_poly_pts, depth_map)
+        if roi is None:
+            return None
+        roi5 = resize_norm_5ch(roi, IMG_SIZE)
+        seq.append(roi5)
+    return np.stack(seq, axis=0).astype(np.float32)  # [T,5,H,W]
+
+def evaluate_on_the_fly():
+    # device e modello
+    use_cuda = USE_CUDA and torch.cuda.is_available()
+    device = torch.device("cuda:0" if use_cuda else "cpu")
+    print(f"Device modello: {device}")
+
     model = CNN_TCN_Classifier(sequence_length=SEQ_LEN, pretrained=False).to(device)
     state = torch.load(TCN_WEIGHTS, map_location=device)
     if any(k.startswith("module.") for k in state.keys()):
@@ -201,78 +264,122 @@ def main():
     model.load_state_dict(state, strict=True)
     model.eval()
 
-    # lista immagini
-    img_ext = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
-    images = [f for f in os.listdir(IMAGES_DIR) if os.path.splitext(f)[1].lower() in img_ext]
-    images.sort()
-    if not images:
-        raise RuntimeError("Nessuna immagine trovata nella cartella IMAGES_DIR.")
+    depth_pipe = make_depth_pipeline()
+
+    # loop su video/json
+    videos = sorted([v for v in os.listdir(VIDEOS_PATH) if not v.startswith(".")])
+    total_pairs = 0
+    skipped_pairs = 0
 
     y_true, y_pred, y_score = [], [], []
-    miss_any = 0
 
-    for i, img_name in enumerate(images, 1):
-        img_path = os.path.join(IMAGES_DIR, img_name)
-        label_name = os.path.splitext(img_name)[0] + ".txt"
-        label_path = os.path.join(LABELS_DIR, label_name)
+    # buffer per batch
+    xb_buf, yb_buf = [], []
 
-        try:
-            x, y_tool, z_tissue = read_label_file(label_path)
-        except Exception as e:
-            print(f"[{i}/{len(images)}] label non valida per {img_name}: {e}")
-            continue
-
-        sample = build_sample_from_image(
-            img_path, y_tool, z_tissue,
-            yolo_model, depth_pipe,
-            IMG_SIZE, SEQ_LEN
-        )
-
-        if sample is None:
-            # classi non trovate o ROI degenerata
-            y_true.append(x)
-            y_pred.append(0)
-            y_score.append(0.0)
-            miss_any += 1
-            continue
-
-        sample = sample.unsqueeze(0).to(device)  # 1 x T x 5 x H x W
+    def flush_batch():
+        nonlocal xb_buf, yb_buf, y_true, y_pred, y_score
+        if not xb_buf:
+            return
+        xb = torch.from_numpy(np.stack(xb_buf, axis=0)).to(device)  # (B,T,5,H,W)
+        yb = torch.tensor(yb_buf, dtype=torch.float32, device=device)
         with torch.no_grad():
-            prob = model(sample).clamp(0.0, 1.0).item()
-        pred = 1 if prob >= THRESHOLD else 0
+            probs = model(xb).clamp(0.0, 1.0)  # (B,)
+        preds = (probs >= THRESHOLD).long().cpu().numpy().tolist()
+        y_true.extend(yb.cpu().numpy().astype(int).tolist())
+        y_pred.extend(preds)
+        y_score.extend(probs.cpu().numpy().tolist())
+        xb_buf, yb_buf = [], []
 
-        y_true.append(x)
-        y_pred.append(pred)
-        y_score.append(prob)
+    processed_videos = 0
+    for v in videos:
+        video_path = os.path.join(VIDEOS_PATH, v)
+        if not os.path.isfile(video_path):
+            continue
 
-        if i % 25 == 0 or i == len(images):
-            print(f"[{i}/{len(images)}] prob={prob:.3f} pred={pred} gt={x}")
+        # trova JSON corrispondente
+        key_video = normalize(os.path.splitext(v)[0])
+        matched_json = None
+        for fname in os.listdir(LABELS_PATH):
+            if normalize(os.path.splitext(fname)[0]) == key_video:
+                matched_json = os.path.join(LABELS_PATH, fname)
+                break
+        if not matched_json:
+            print(f"[WARNING] Nessun JSON per «{v}». Salto.")
+            continue
 
-    # metriche
+        cap, fcount = _load_video(video_path)
+        data = json.load(open(matched_json, 'r', encoding='utf-8'))
+        labels = data['labels']
+
+        # frame annotati validi
+        frame_indices = [int(k) for k in labels.keys() if len(labels[k]) != 0]
+        frame_indices.sort()
+
+        for i_idx, idx in enumerate(frame_indices, 1):
+            if MAX_FRAME is not None and idx > MAX_FRAME:
+                continue
+            if idx - (SEQ_LEN - 1) < 0 or idx >= fcount:
+                continue
+
+            objs = labels[str(idx)]
+            len_dict = len(objs)
+            if len_dict < 2:
+                continue
+
+            # frame centrale per dimensioni e depth
+            frame_center = _load_frame(cap, idx)
+            W, H = frame_center.size
+            depth_map = np.array(depth_pipe(frame_center)['depth']).astype(np.float32)
+
+            # coppie come create_test
+            pairs = build_pairs_for_idx(objs, H, W)
+
+            for (x, tissue_poly, tool_poly) in pairs:
+                total_pairs += 1
+                seq = build_sequence(cap, idx, tissue_poly, tool_poly, depth_map)
+                if seq is None:
+                    skipped_pairs += 1
+                    continue
+                xb_buf.append(seq)
+                yb_buf.append(int(x))
+
+                if len(xb_buf) >= BATCH_SIZE:
+                    flush_batch()
+
+            if total_pairs % PRINT_EVERY == 0:
+                print(f"[{processed_videos+1}/{len(videos)}] frame {i_idx}/{len(frame_indices)} — coppie finora: {total_pairs}, saltate: {skipped_pairs}")
+
+        cap.release()
+        processed_videos += 1
+
+    # flush finale
+    flush_batch()
+
     if len(y_true) == 0:
         raise RuntimeError("Nessuna predizione valida prodotta.")
 
     acc = accuracy_score(y_true, y_pred)
-    f1_mac = f1_score(y_true, y_pred, average="macro", zero_division=0)
-    f1_w = f1_score(y_true, y_pred, average="weighted", zero_division=0)
+    f1_mac = f1_score(y_true, y_pred, average='macro', zero_division=0)
+    f1_w = f1_score(y_true, y_pred, average='weighted', zero_division=0)
     prec = precision_score(y_true, y_pred, zero_division=0)
     rec = recall_score(y_true, y_pred, zero_division=0)
     bal_acc = balanced_accuracy_score(y_true, y_pred)
     cm = confusion_matrix(y_true, y_pred, labels=[0,1])
     report = classification_report(y_true, y_pred, digits=4, zero_division=0)
 
-    print("\n=== RISULTATI ===")
-    print(f"Accuracy:          {acc:.4f}")
-    print(f"F1 macro:          {f1_mac:.4f}")
-    print(f"F1 weighted:       {f1_w:.4f}")
-    print(f"Precision:         {prec:.4f}")
-    print(f"Recall:            {rec:.4f}")
-    print(f"Balanced accuracy: {bal_acc:.4f}")
+    print("\n=== RISULTATI ON-THE-FLY (oracle GT) ===")
+    print(f"Coppie totali processate:   {total_pairs}")
+    print(f"Coppie saltate (ROI vuota): {skipped_pairs}")
+    print(f"Accuracy:                   {acc:.4f}")
+    print(f"F1 macro:                   {f1_mac:.4f}")
+    print(f"F1 weighted:                {f1_w:.4f}")
+    print(f"Precision:                  {prec:.4f}")
+    print(f"Recall:                     {rec:.4f}")
+    print(f"Balanced accuracy:          {bal_acc:.4f}")
     print("Confusion matrix [righe=gt 0,1; colonne=pred 0,1]:")
     print(cm)
     print("\nClassification report:")
     print(report)
-    print(f"\nCampioni senza ROI valida (classi mancanti o union vuota): {miss_any}")
 
 if __name__ == "__main__":
-    main()
+    evaluate_on_the_fly()
