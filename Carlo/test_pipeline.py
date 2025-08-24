@@ -1,24 +1,17 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
-# =======================
-# CONFIGURAZIONE PERCORSI
-# =======================
-VIDEOS_PATH  = "Dataset/video_dataset/videos/test"        # cartella con i video di test
-LABELS_PATH  = "Dataset/video_dataset/videos/test"        # cartella con i JSON corrispondenti
-TCN_WEIGHTS  = "model_TCN.pt"  # pesi del CNN+TCN
+VIDEOS_PATH  = "../Dataset/video_dataset/videos/test"        
+LABELS_PATH  = "../Dataset/video_dataset/videos/test"        
+TCN_WEIGHTS  = "model_TCN.pt"  
 
-# =======================
-# PARAMETRI
-# =======================
+
 IMG_SIZE     = 224
 SEQ_LEN      = 5
 BATCH_SIZE   = 16
 THRESHOLD    = 0.5
 USE_CUDA     = True
-DEPTH_DEV    = None   # None => 0 su GPU, -1 su CPU; oppure indice GPU esplicito (es. 0)
-MAX_FRAME    = None   # es. 150 per replicare il tuo filtro; None per ignorarlo
-PRINT_EVERY  = 50     # frequenza logging progressi
+DEPTH_DEV    = None   
+MAX_FRAME    = None   
+PRINT_EVERY  = 50     
 
 import os, re, json
 import numpy as np
@@ -72,17 +65,16 @@ class CNN_TCN_Classifier(nn.Module):
         )
 
     def forward(self, x):
-        # x: B x T x C x H x W (C=5)
         B, T, C, H, W = x.shape
         x = x.view(B*T, C, H, W)
         x = self.cnn(x)
-        x = self.pool2d(x)          # (B*T,512,1,1)
-        x = x.view(B, T, 512)       # (B,T,512)
-        x = x.permute(0, 2, 1)      # (B,512,T)
-        x = self.tcn(x)             # (B,ch,T)
-        x = self.pool1d(x)          # (B,ch,1)
-        out = self.classifier(x)    # (B,1)
-        return out.squeeze(1)       # (B,)
+        x = self.pool2d(x)          
+        x = x.view(B, T, 512)      
+        x = x.permute(0, 2, 1)    
+        x = self.tcn(x)           
+        x = self.pool1d(x)        
+        out = self.classifier(x)  
+        return out.squeeze(1)     
 
 def normalize(name: str) -> str:
     return re.sub(r'[^A-Za-z0-9]', '', name).lower()
@@ -137,16 +129,16 @@ def extract_union_roi(img_rgb, tool_poly_pts, tissue_poly_pts, depth_map):
     if d.ndim == 2:
         d = d[..., None]
     merged_mask = (union[y:y+h, x:x+w][..., None] * 255).astype(np.uint8)
-    roi = np.concatenate([roi_rgb, d, merged_mask], axis=-1)  # HxWx5
+    roi = np.concatenate([roi_rgb, d, merged_mask], axis=-1) 
     return roi
 
 def resize_norm_5ch(roi, img_size):
     roi = cv2.resize(roi, (img_size, img_size), interpolation=cv2.INTER_LINEAR).astype(np.float32)
     rgb = roi[..., :3] / 255.0
-    depth = roi[..., 3:4]          # già ~[0,1]
+    depth = roi[..., 3:4]          
     mask = roi[..., 4:5] / 255.0
-    roi5 = np.concatenate([rgb, depth, mask], axis=-1)            # HxWx5
-    roi5 = np.transpose(roi5, (2, 0, 1))                           # 5xHxW
+    roi5 = np.concatenate([rgb, depth, mask], axis=-1)            
+    roi5 = np.transpose(roi5, (2, 0, 1))                          
     return roi5
 
 def build_pairs_for_idx(objs, H, W):
@@ -174,7 +166,6 @@ def build_pairs_for_idx(objs, H, W):
         tissue_poly = None
         tool_poly = None
         non_tool_poly = None
-        # costruiamo le tre entità come nel tuo codice
         for j in range(len_dict):
             if not bool(objs[j]):
                 continue
@@ -192,9 +183,8 @@ def build_pairs_for_idx(objs, H, W):
             pairs.append((0, tissue_poly, non_tool_poly))
 
     else:
-        # len_dict >= 4
-        pair_list = []  # (tissue_poly, interaction_tool_name) — ci basta il poly; la label si deduce confrontando i nomi
-        # Prima raccogliamo tutti i tissue is_tti=1 con il loro interaction_tool
+        
+        pair_list = []  
         inter_list = []
         for j in range(len_dict):
             if not bool(objs[j]):
@@ -204,7 +194,6 @@ def build_pairs_for_idx(objs, H, W):
                 interaction_tool_name = objs[j]['interaction_tool']
                 inter_list.append((tissue_poly, interaction_tool_name))
 
-        # Poi accoppiamo con gli strumenti presenti al frame
         for tissue_poly, interaction_tool_name in inter_list:
             for j in range(len_dict):
                 if not bool(objs[j]):
@@ -220,9 +209,6 @@ def build_pairs_for_idx(objs, H, W):
 
     return pairs
 
-# ---------------------------
-# Depth pipeline
-# ---------------------------
 def make_depth_pipeline():
     use_cuda = USE_CUDA and torch.cuda.is_available()
     if DEPTH_DEV is None:
@@ -252,7 +238,6 @@ def build_sequence(cap, idx, tissue_poly_pts, tool_poly_pts, depth_map):
     return np.stack(seq, axis=0).astype(np.float32)  # [T,5,H,W]
 
 def evaluate_on_the_fly():
-    # device e modello
     use_cuda = USE_CUDA and torch.cuda.is_available()
     device = torch.device("cuda:0" if use_cuda else "cpu")
     print(f"Device modello: {device}")
@@ -266,24 +251,22 @@ def evaluate_on_the_fly():
 
     depth_pipe = make_depth_pipeline()
 
-    # loop su video/json
     videos = sorted([v for v in os.listdir(VIDEOS_PATH) if not v.startswith(".")])
     total_pairs = 0
     skipped_pairs = 0
 
     y_true, y_pred, y_score = [], [], []
 
-    # buffer per batch
     xb_buf, yb_buf = [], []
 
     def flush_batch():
         nonlocal xb_buf, yb_buf, y_true, y_pred, y_score
         if not xb_buf:
             return
-        xb = torch.from_numpy(np.stack(xb_buf, axis=0)).to(device)  # (B,T,5,H,W)
+        xb = torch.from_numpy(np.stack(xb_buf, axis=0)).to(device)  
         yb = torch.tensor(yb_buf, dtype=torch.float32, device=device)
         with torch.no_grad():
-            probs = model(xb).clamp(0.0, 1.0)  # (B,)
+            probs = model(xb).clamp(0.0, 1.0)  
         preds = (probs >= THRESHOLD).long().cpu().numpy().tolist()
         y_true.extend(yb.cpu().numpy().astype(int).tolist())
         y_pred.extend(preds)
@@ -296,7 +279,6 @@ def evaluate_on_the_fly():
         if not os.path.isfile(video_path):
             continue
 
-        # trova JSON corrispondente
         key_video = normalize(os.path.splitext(v)[0])
         matched_json = None
         for fname in os.listdir(LABELS_PATH):
@@ -311,7 +293,6 @@ def evaluate_on_the_fly():
         data = json.load(open(matched_json, 'r', encoding='utf-8'))
         labels = data['labels']
 
-        # frame annotati validi
         frame_indices = [int(k) for k in labels.keys() if len(labels[k]) != 0]
         frame_indices.sort()
 
@@ -326,12 +307,10 @@ def evaluate_on_the_fly():
             if len_dict < 2:
                 continue
 
-            # frame centrale per dimensioni e depth
             frame_center = _load_frame(cap, idx)
             W, H = frame_center.size
             depth_map = np.array(depth_pipe(frame_center)['depth']).astype(np.float32)
 
-            # coppie come create_test
             pairs = build_pairs_for_idx(objs, H, W)
 
             for (x, tissue_poly, tool_poly) in pairs:
@@ -352,7 +331,6 @@ def evaluate_on_the_fly():
         cap.release()
         processed_videos += 1
 
-    # flush finale
     flush_batch()
 
     if len(y_true) == 0:
