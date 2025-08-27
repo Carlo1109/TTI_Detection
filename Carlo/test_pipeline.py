@@ -8,14 +8,14 @@ from transformers import pipeline
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, confusion_matrix, balanced_accuracy_score
 
 # ====== CONFIG ======
-TEST_LABELS_DIR = '../Dataset/video_dataset/labels/test/'   # adattare se necessario
-TEST_VIDEOS_DIR = '../Dataset/video_dataset/videos/test/'   # adattare se necessario
+TEST_VIDEOS_DIR = '../Dataset/video_dataset/videos/test/'   
+TEST_LABELS_DIR = '../Dataset/video_dataset/labels/test/'   
 IMG_SIZE        = 224
 SEQ_LEN         = 5
 DEVICE          = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-YOLO_WEIGHTS    = '../Common Code/runs_OLD_DATASET/segment/train/weights/best.pt'  # adattare
-TCN_WEIGHTS     = 'model_TCN_new.pt'          # adattare
+YOLO_WEIGHTS    = '../Common Code/runs_OLD_DATASET/segment/train/weights/best.pt'  
+TCN_WEIGHTS     = 'model_TCN_new.pt'        
 
 # ====== UTILS ======
 def to_tool_id(name):
@@ -75,16 +75,13 @@ def _load_frame(cap, idx):
         raise ValueError(f"Impossibile leggere frame {idx}")
     return frame  # BGR
 
-# Ultralytics: restituisco lista di dict { 'class': int, 'mask': HxW uint8 }
 def yolo_inference(model: YOLO, image_bgr: np.ndarray) -> list[dict]:
-    # Ultralytics accetta np.ndarray BGR
     res = model.predict(image_bgr, verbose=False)
     r = res[0]
     if r.masks is None or r.boxes is None or len(r.boxes.cls) == 0:
         return []
     classes = r.boxes.cls.cpu().numpy().astype(int)
-    masks   = r.masks.data.cpu().numpy()  # [N, h, w] a risoluzione d’inferenza
-    # porto le maschere alla risoluzione del frame originale
+    masks   = r.masks.data.cpu().numpy()  
     H, W = r.masks.orig_shape
     out = []
     for c, m in zip(classes, masks):
@@ -92,7 +89,6 @@ def yolo_inference(model: YOLO, image_bgr: np.ndarray) -> list[dict]:
         out.append({'class': int(c), 'mask': m_full})
     return out
 
-# separo tool vs tissue (stesso schema classi del tuo codice: 0..11 tool, 12..20 tissue)
 TOOL_CLASSES = list(range(0, 12))
 def find_tool_tissue_pairs(detections: list[dict]) -> list[dict]:
     tools   = [d for d in detections if d['class'] in TOOL_CLASSES]
@@ -103,29 +99,26 @@ def find_tool_tissue_pairs(detections: list[dict]) -> list[dict]:
             pairs.append({'tool': t, 'tissue': u})
     return pairs
 
-# ROI dall’unione delle due maschere del frame centrale; depth del frame centrale
 def extract_union_roi(frame_bgr, tool_mask, tissue_mask, depth_map=None):
     combined = (tool_mask.astype(np.uint8) | tissue_mask.astype(np.uint8))
     if combined.max() == 0:
-        return None, None  # niente bbox
+        return None, None  
     x, y, w, h = cv2.boundingRect(combined)
-    roi_img = frame_bgr[y:y+h, x:x+w, :]                      # BGR
+    roi_img = frame_bgr[y:y+h, x:x+w, :]                      
     if depth_map is not None:
-        depth_roi = depth_map[y:y+h, x:x+w]                   # float32 HxW
-        roi = np.concatenate([cv2.cvtColor(roi_img, cv2.COLOR_BGR2RGB),  # RGB
+        depth_roi = depth_map[y:y+h, x:x+w]                   
+        roi = np.concatenate([cv2.cvtColor(roi_img, cv2.COLOR_BGR2RGB),  
                               depth_roi[..., None]], axis=-1)
     else:
         roi = cv2.cvtColor(roi_img, cv2.COLOR_BGR2RGB)
     merged_mask = combined[y:y+h, x:x+w][..., None] * 255
-    roi = np.concatenate([roi, merged_mask], axis=-1)         # [H, W, 5]
+    roi = np.concatenate([roi, merged_mask], axis=-1)         
     return roi, (x, y, w, h)
 
-# Ground truth per frame annotato: identico al “vecchio” metodo
-# Restituisce dict {(tool_class, tissue_class): is_tti}
-# Adatta i campi se nel tuo JSON i nomi differiscono.
+
 def build_gt_pairs_from_json(objs: list[dict]) -> dict[tuple[int,int], int]:
     tool_ids = set()
-    tissue_items = []  # (tissue_id, is_tti, interaction_tool_id)
+    tissue_items = []  
 
     for o in objs:
         # tool
@@ -145,7 +138,6 @@ def build_gt_pairs_from_json(objs: list[dict]) -> dict[tuple[int,int], int]:
 
             tissue_items.append((uid, is_tti, inter_tid))
 
-    # costruzione GT
     gt = {}
     for t_id in tool_ids:
         for (u_id, is_tti, inter_tid) in tissue_items:
@@ -155,7 +147,6 @@ def build_gt_pairs_from_json(objs: list[dict]) -> dict[tuple[int,int], int]:
     return gt
 
 
-# ====== MODELLO CNN-TCN (stesso del training) ======
 class CNN_TCN_Classifier(nn.Module):
     def __init__(self, tcn_channels=[256, 128], sequence_length=SEQ_LEN, num_classes=1, pretrained=True, in_channels=5):
         super().__init__()
@@ -195,9 +186,7 @@ class CNN_TCN_Classifier(nn.Module):
         out = self.classifier(x)  # [B,1] sigmoid
         return out
 
-# ====== TEST LOOP E2E ======
 def test_end_to_end():
-    # modelli
     yolo = YOLO(YOLO_WEIGHTS)
     depth_pipe = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf", device=0 if DEVICE.type=='cuda' else -1)
     model = CNN_TCN_Classifier(sequence_length=SEQ_LEN).to(DEVICE)
@@ -224,34 +213,30 @@ def test_end_to_end():
 
         labels = json.load(open(jpath, 'r'))['labels']
 
-        # per ogni frame annotato nel JSON
         for idx_s, objs in labels.items():
             idx = int(idx_s)
             if idx - (SEQ_LEN - 1) < 0 or idx >= fcount:
                 continue
 
-            # ground truth sulle coppie classi
             gt_pairs = build_gt_pairs_from_json(objs)  # {(tool_class,tissue_class): is_tti}
             if len(gt_pairs) == 0:
                 continue
 
-            # frame centrale
+            
             frame_c = _load_frame(cap, idx)  # BGR
-            # YOLO sul frame centrale
+            
             dets = yolo_inference(yolo, frame_c)
             pairs = find_tool_tissue_pairs(dets)
 
-            # depth del frame centrale (come da training)
+            
             depth_map = np.array(depth_pipe(Image.fromarray(cv2.cvtColor(frame_c, cv2.COLOR_BGR2RGB)))['depth']).astype(np.float32)
 
             matched_keys = set()
 
-            # per ogni coppia predetta da YOLO, costruisco la clip e classifico
             for pair in pairs:
                 t_class = int(pair['tool']['class'])
                 u_class = int(pair['tissue']['class'])
 
-                # ROI dal frame centrale
                 roi0, bbox = extract_union_roi(frame_c,
                                                pair['tool']['mask'].astype(np.uint8),
                                                pair['tissue']['mask'].astype(np.uint8),
@@ -259,15 +244,12 @@ def test_end_to_end():
                 if roi0 is None:
                     continue
 
-                # normalizzazione semplice: [0,1] come nel training
                 seq_tensors = []
                 x, y, w, h = bbox
                 for t in range(idx-(SEQ_LEN-1), idx+1):
                     fr = _load_frame(cap, t)  # BGR
                     patch_rgb = cv2.cvtColor(fr[y:y+h, x:x+w], cv2.COLOR_BGR2RGB)
-                    # depth resta quella del centro, ritaglio coerente
                     patch_depth = depth_map[y:y+h, x:x+w]
-                    # maschera unita del centro, ritaglio coerente
                     merged_mask = (pair['tool']['mask'][y:y+h, x:x+w] | pair['tissue']['mask'][y:y+h, x:x+w]).astype(np.uint8)*255
                     roi = np.concatenate([patch_rgb, patch_depth[...,None], merged_mask[...,None]], axis=-1)
                     roi = cv2.resize(roi, (IMG_SIZE, IMG_SIZE), interpolation=cv2.INTER_LINEAR)
@@ -278,11 +260,10 @@ def test_end_to_end():
                 xb = torch.from_numpy(seq_np).unsqueeze(0).to(DEVICE)  # 1,T,C,H,W
 
                 with torch.no_grad():
-                    prob = model(xb).squeeze(1).item()  # sigmoid già nel modello
+                    prob = model(xb).squeeze(1).item()  
                 pred = 1 if prob >= 0.5 else 0
                 y_pred.append(pred)
 
-                # y_true dalla tabella GT: se la coppia classi non esiste, consideriamo 0 (false positive di pairing)
                 y_t = gt_pairs.get((t_class, u_class), 0)
                 y_true.append(y_t)
                 if (t_class, u_class) in gt_pairs:
@@ -292,7 +273,6 @@ def test_end_to_end():
 
                 total_pairs += 1
 
-            # penalizzo i falsi negativi di pairing su positivi GT non visti
             for (k, v) in gt_pairs.items():
                 if v == 1 and k not in matched_keys:
                     y_true.append(1)
@@ -302,7 +282,6 @@ def test_end_to_end():
 
         cap.release()
 
-    # ====== METRICHE ======
     if len(y_true) == 0:
         print("Nessun dato di test prodotto.")
         return
