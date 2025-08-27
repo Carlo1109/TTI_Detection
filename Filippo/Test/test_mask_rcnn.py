@@ -12,11 +12,11 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
 IMG_SIZE    = (256, 256)
 DEVICE      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-CHECKPOINT  = "student_model_epoch_14.pt"
+CHECKPOINT  = "student_model_best.pt"
 
 def get_maskrcnn(num_classes=3):
  
-    model = torchvision.models.detection.maskrcnn_resnet50_fpn_v2(weights="DEFAULT")
+    model = torchvision.models.detection.maskrcnn_resnet50_fpn(weights="DEFAULT")
     
 
     if num_classes != -1:
@@ -38,7 +38,7 @@ def get_maskrcnn(num_classes=3):
 
     return model
 
-def vis(model,im,score_thresh=0.4, mask_thresh=0.4):
+def vis(model,im,score_thresh=0.2, mask_thresh=0.2):
     img = cv2.imread(im)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  
     
@@ -85,7 +85,7 @@ def vis(model,im,score_thresh=0.4, mask_thresh=0.4):
 if __name__ == '__main__':
     model = get_maskrcnn()
     model.to(DEVICE)
-    img_fp = "../Full Dataset/val/video0001_frame0.jpg"
+    img_fp = "../Full Dataset/val/video0272_frame96.jpg"
     sd = torch.load(CHECKPOINT, map_location=DEVICE)
     missing, unexpected = model.load_state_dict(sd, strict=False)
 
