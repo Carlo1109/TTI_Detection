@@ -46,8 +46,8 @@ def generate_predictions(yolo_model,depth_model,tti_classifier):
                 
             
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        # _ , tti_predictions  = end_to_end_pipeline(IMAGES_TEST + img,yolo_model,depth_model,tti_classifier,device)
-        _ , tti_predictions  = depth_treshold(IMAGES_TEST + img,yolo_model,depth_model)
+        _ , tti_predictions  = end_to_end_pipeline(IMAGES_TEST + img,yolo_model,depth_model,tti_classifier,device)
+        # _ , tti_predictions  = depth_treshold(IMAGES_TEST + img,yolo_model,depth_model)
         
 
         if len(tti_predictions) == 0 and len(d) != 0:
