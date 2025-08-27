@@ -11,11 +11,10 @@ SEQ_LEN         = 5
 DEVICE          = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 YOLO_WEIGHTS    = '../Common Code/runs_OLD_DATASET/segment/train/weights/best.pt'  
-TCN_WEIGHTS     = 'model_TCN_new.pt'                              # adattare
-USE_DEPTH    = True   # coerente con il training
+TCN_WEIGHTS     = 'model_TCN_new.pt'                              
+USE_DEPTH    = True   
 VERBOSE      = True
 
-# ====== MAPPING NOMI → ID (come da tuo messaggio) ======
 def to_tool_id(name):
     if name is None:
         return 0
@@ -39,7 +38,6 @@ def to_tti_id(name):
     key = str(name).lower().strip()
     return name_to_id.get(key, 12)
 
-# ====== UTILS I/O VIDEO ======
 def normalize(name: str) -> str:
     return re.sub(r'[^A-Za-z0-9]', '', name).lower()
 
@@ -54,7 +52,6 @@ def _load_frame(cap, idx):
         raise ValueError(f"Impossibile leggere frame {idx}")
     return frame  # BGR
 
-# ====== POLIGONI → MASCHERE (coerenti al tuo training) ======
 def parse_mask_string(mask_str, H, W):
     if not mask_str or not mask_str.strip():
         return np.zeros((0,2), np.int32)
@@ -82,8 +79,6 @@ def poly_to_mask(poly_str, H, W):
         cv2.fillPoly(mask, [pts], 1)
     return mask
 
-# ====== COSTRUZIONE GT COPPIE (identico al training) ======
-# Ritorna: lista di tuple (tool_id, tti_id, is_tti, tool_mask, tti_mask)
 def build_gt_pairs_and_masks(objs, H, W):
     tools = []
     tissues = []
@@ -107,7 +102,6 @@ def build_gt_pairs_and_masks(objs, H, W):
             pairs.append((tid, uid, label, tmask, umask))
     return pairs
 
-# ====== ROI E CLIP ======
 def extract_union_bbox(tool_mask, tissue_mask):
     comb = (tool_mask.astype(np.uint8) | tissue_mask.astype(np.uint8))
     if comb.max() == 0:
@@ -122,7 +116,6 @@ def make_clip(cap, idx_center, bbox, depth_map_center, tool_mask_center, tissue_
         fr = _load_frame(cap, t)  # BGR
         patch_rgb = cv2.cvtColor(fr[y:y+h, x:x+w], cv2.COLOR_BGR2RGB)
         Hc, Wc = patch_rgb.shape[:2]
-        # depth e maschera dal centro, ritagliate
         if USE_DEPTH and depth_map_center is not None:
             dpatch = depth_map_center[y:y+h, x:x+w]
         else:
@@ -135,7 +128,6 @@ def make_clip(cap, idx_center, bbox, depth_map_center, tool_mask_center, tissue_
     seq_np = np.stack(seq, axis=0)  # T,C,H,W
     return seq_np
 
-# ====== MODELLO (uguale al training) ======
 class CNN_TCN_Classifier(nn.Module):
     def __init__(self, tcn_channels=[256, 128], sequence_length=SEQ_LEN, num_classes=1, pretrained=True):
         super().__init__()
@@ -177,9 +169,7 @@ class CNN_TCN_Classifier(nn.Module):
         out = self.classifier(x)  # [B,1] sigmoid
         return out
 
-# ====== VALUTAZIONE ORACLE ======
 def evaluate_oracle():
-    # modelli
     depth_pipe = pipeline(task="depth-estimation",
                           model="depth-anything/Depth-Anything-V2-Small-hf",
                           device=0 if DEVICE.type == 'cuda' else -1)
@@ -189,15 +179,15 @@ def evaluate_oracle():
 
     y_true, y_prob = [], []
 
-    videos = [v for v in os.listdir(VIDEOS_DIR) if not v.startswith('.')]
+    videos = [v for v in os.listdir(TEST_VIDEOS_DIR) if not v.startswith('.')]
     for i, vid in enumerate(videos, 1):
         if VERBOSE: print(f"[{i}/{len(videos)}] Video: {vid}")
-        vpath = os.path.join(VIDEOS_DIR, vid)
+        vpath = os.path.join(TEST_VIDEOS_DIR, vid)
         cap, fcount = _load_video(vpath)
 
         key = normalize(os.path.splitext(vid)[0])
-        jpath = next((os.path.join(LABELS_DIR, f)
-                      for f in os.listdir(LABELS_DIR)
+        jpath = next((os.path.join(TEST_LABELS_DIR, f)
+                      for f in os.listdir(TEST_LABELS_DIR)
                       if normalize(os.path.splitext(f)[0]) == key), None)
         if jpath is None:
             if VERBOSE: print("  Nessun JSON, salto.")
@@ -211,15 +201,12 @@ def evaluate_oracle():
             if idx - (SEQ_LEN - 1) < 0 or idx >= fcount:
                 continue
 
-            # frame centrale e dimensioni
             frame_c = _load_frame(cap, idx)  # BGR
             H, W = frame_c.shape[:2]
-            # coppie GT e maschere
             pairs = build_gt_pairs_and_masks(objs, H, W)
             if len(pairs) == 0:
                 continue
 
-            # depth del frame centrale
             depth_map = None
             if USE_DEPTH:
                 depth_map = np.array(
@@ -244,7 +231,6 @@ def evaluate_oracle():
         print("Nessun sample raccolto.")
         return
 
-    # soglia default 0.5
     y_pred = [1 if p >= 0.5 else 0 for p in y_prob]
     acc = accuracy_score(y_true, y_pred)
     f1m = f1_score(y_true, y_pred, average='macro', zero_division=0)
@@ -263,7 +249,6 @@ def evaluate_oracle():
     print("Confusion matrix:\n", cm)
     print(f"Balanced accuracy: {ba:.4f}")
 
-    # sweep soglia per best F1
     best_f1, best_thr = -1, 0.5
     for thr in np.linspace(0.05, 0.95, 19):
         y_hat = [1 if p >= thr else 0 for p in y_prob]

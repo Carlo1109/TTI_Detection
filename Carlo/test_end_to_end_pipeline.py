@@ -7,7 +7,6 @@ from ultralytics import YOLO
 from transformers import pipeline
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, confusion_matrix, balanced_accuracy_score
 
-# ====== CONFIG ======
 TEST_VIDEOS_DIR = '../Dataset/video_dataset/videos/test/'   
 TEST_LABELS_DIR = '../Dataset/video_dataset/labels/test/'   
 IMG_SIZE        = 224
@@ -17,7 +16,6 @@ DEVICE          = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 YOLO_WEIGHTS    = '../Common Code/runs_OLD_DATASET/segment/train/weights/best.pt'  
 TCN_WEIGHTS     = 'model_TCN_new.pt'        
 
-# ====== UTILS ======
 def to_tool_id(name):
     if name == None :
         return 0
