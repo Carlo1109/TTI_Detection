@@ -12,11 +12,11 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
 IMG_SIZE    = (256, 256)
 DEVICE      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-CHECKPOINT  = "student_cycle_9.pt"
+CHECKPOINT  = "student_model_epoch_14.pt"
 
 def get_maskrcnn(num_classes=3):
  
-    model = torchvision.models.detection.maskrcnn_resnet50_fpn(weights="DEFAULT")
+    model = torchvision.models.detection.maskrcnn_resnet50_fpn_v2(weights="DEFAULT")
     
 
     if num_classes != -1:
