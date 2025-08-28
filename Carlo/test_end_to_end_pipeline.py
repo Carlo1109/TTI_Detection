@@ -18,17 +18,14 @@ YOLO_WEIGHTS    = '../Common Code/runs_OLD_DATASET/segment/train/weights/best.pt
 TCN_WEIGHTS     = 'model_TCN_V3.pt'  
 
 
-# -- Parametri
 IMG_SIZE   = 224
 SEQ_LEN    = 5
-CONF_THR   = 0.45     # filtro confidenza YOLO
-IOU_DUP_THR= 0.90     # dedup maschere simili (IoU)
-D_MAX      = 30       # px max per pairing "nearest"
+CONF_THR   = 0.45     
+IOU_DUP_THR= 0.90     
+D_MAX      = 30       
 DEVICE     = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# =========================
-# UTILS comuni
-# =========================
+
 def normalize(name: str) -> str:
     return re.sub(r'[^A-Za-z0-9]', '', name).lower()
 
@@ -43,7 +40,7 @@ def _load_frame(cap, idx, rgb=False):
         raise ValueError(f"Impossibile leggere frame {idx}")
     if rgb:
         fr = cv2.cvtColor(fr, cv2.COLOR_BGR2RGB)
-    return fr  # BGR o RGB in base a rgb
+    return fr  
 
 def parse_mask_string(mask_str, H, W):
     if not mask_str or not mask_str.strip():
@@ -93,7 +90,6 @@ def make_clip(cap, idx_center, bbox, depth_map_center, tool_mask_center, tissue_
         seq.append(np.transpose(roi, (2,0,1)))  # C,H,W
     return np.stack(seq, axis=0)  # T,C,H,W
 
-# Nome->ID coerenti con la tua mappa
 def to_tool_id(name):
     if name is None: return 0
     m = {'unknown_tool':0,'dissector':1,'scissors':2,'suction':3,'grasper 3':4,'harmonic':5,'grasper':6,'bipolar':7,'grasper 2':8,'cautery (hook, spatula)':9,'ligasure':10,'stapler':11}
@@ -104,9 +100,6 @@ def to_tti_id(name):
     m = {'unknown_tti':12,'coagulation':13,'other':14,'retract and grab':15,'blunt dissection':16,'energy - sharp dissection':17,'staple':18,'retract and push':19,'cut - sharp dissection':20}
     return m.get(str(name).lower().strip(), 12)
 
-# =========================
-# MODELLO (identico al training)
-# =========================
 class CNN_TCN_Classifier(nn.Module):
     def __init__(self, tcn_channels=[256, 128], sequence_length=SEQ_LEN, num_classes=1, pretrained=True):
         super().__init__()
@@ -173,7 +166,6 @@ def filter_by_conf_and_dedup(result, conf_thr=0.45, iou_thr=0.9):
     masks = np.stack([cv2.resize(m.astype(np.uint8), (W, H), interpolation=cv2.INTER_NEAREST) for m in masks], axis=0)
 
     out = []
-    # dedup per classe
     for c in np.unique(classes):
         idx = np.where(classes == c)[0]
         sel = []
@@ -298,7 +290,6 @@ def test_end_to_end(depth_pipe, yolo, model, thr_best):
                 if roi0 is None:
                     continue
 
-                # costruisco la clip [t-4..t] con depth/mask del centro
                 x, y, w, h = bbox
                 seq = []
                 for t in range(idx-(SEQ_LEN-1), idx+1):
@@ -327,7 +318,6 @@ def test_end_to_end(depth_pipe, yolo, model, thr_best):
                     wrong_pairing += 1
                 total_pairs += 1
 
-            # FN di pairing su coppie GT positive non viste
             for (k, v) in gt_pairs.items():
                 if v == 1 and k not in matched_keys:
                     y_true.append(1)
@@ -363,7 +353,6 @@ def test_end_to_end(depth_pipe, yolo, model, thr_best):
 if __name__ == '__main__':
     print("Device:", DEVICE)
 
-    # 1) istanzia UNA sola volta le pipeline/modelli
     depth_pipe = pipeline(task="depth-estimation",
                           model="depth-anything/Depth-Anything-V2-Small-hf",
                           device=0 if DEVICE.type=='cuda' else -1)
@@ -371,5 +360,4 @@ if __name__ == '__main__':
     model = CNN_TCN_Classifier(sequence_length=SEQ_LEN).to(DEVICE)
     model.load_state_dict(torch.load(TCN_WEIGHTS, map_location=DEVICE), strict=True)
 
-    # 3) E2E con soglia ottimale e pairing filtrato
     test_end_to_end(depth_pipe, yolo, model, thr_best=0.05)
