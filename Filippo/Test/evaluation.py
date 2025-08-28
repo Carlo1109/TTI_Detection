@@ -41,14 +41,29 @@ def get_maskrcnn(num_classes=3):
 
 
 def expand_mask(mask, pixels):
-    if pixels <= 0:
-        return mask.astype(bool).copy()
-    ks = 2 * int(pixels) + 1
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ks, ks))
-    dilated = cv2.dilate(mask.astype(np.uint8), kernel, iterations=1)
-    return dilated.astype(bool)
+    m = np.asarray(mask)
+    if isinstance(m, np.ma.MaskedArray):
+        m = m.filled(0)
+    if m.ndim == 3:
+        m = np.any(m != 0, axis=2)            # riduci canali -> 2D
 
-def vis(model,im,depth_model,score_thresh=0.3, mask_thresh=0.3):
+    m_bin = (m > 0).astype(np.uint8)         # 0/1 sicuro
+
+    if int(pixels) <= 0:
+        return m_bin.astype(bool)
+
+    h, w = m_bin.shape
+    ks = 2 * int(pixels) + 1
+    # se kernel troppo grande rispetto all'immagine -> usare distance transform (più sicuro)
+    if ks >= max(h, w):
+        inv = (m_bin == 0).astype(np.uint8)         
+        dist = cv2.distanceTransform(inv, cv2.DIST_L2, 5)
+        return ((dist <= pixels) | (m_bin.astype(bool)))
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ks, ks))
+    return cv2.dilate(m_bin, kernel, iterations=1).astype(bool)
+
+
+def vis(model,im,depth_model,score_thresh=0.25, mask_thresh=0.6):
     img = cv2.imread(im)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  
     
@@ -80,6 +95,10 @@ def vis(model,im,depth_model,score_thresh=0.3, mask_thresh=0.3):
         mask_bin = mask.squeeze(0).cpu().numpy() >= mask_thresh
         mask_bin = cv2.resize(mask_bin.astype(np.uint8),(W,H),cv2.INTER_NEAREST)
         
+        # plt.imshow(img)
+        # plt.imshow(np.ma.masked_where(mask_bin == 0, mask_bin) )
+        # plt.show()
+        
         x1, y1, x2, y2 = box
         x1 *= scale_x ; x2 *= scale_x ;y1 *= scale_y ; y2 *= scale_y
         rect = plt.Rectangle((x1, y1), x2 - x1, y2 - y1,
@@ -95,18 +114,32 @@ def vis(model,im,depth_model,score_thresh=0.3, mask_thresh=0.3):
         print("tool found")
         tool_mask = tool[0]
         tool_bbox = tool[1]
+
         for tissue in tissue_list:
             tissue_mask = tissue[0]
-            tissue_bbox = tissue[1]
-            intersection_mask = np.logical_and(expand_mask(tool_mask,2),tissue_mask)
-            inter_numb = intersection_mask.sum()
             # plt.imshow(tissue_mask)
+            # plt.show()
+            # plt.imshow(expand_mask(tissue_mask,10))
+            # plt.show()
+            
+            tissue_bbox = tissue[1]
+            intersection_mask = np.logical_and(expand_mask(tool_mask,10),expand_mask(tissue_mask,10))
+            inter_numb = intersection_mask.sum()
+            
+            # plt.imshow(img)
+            # plt.imshow(expand_mask(tool_mask,10),alpha=0.7)
+            # plt.imshow(expand_mask(tissue_mask,10),alpha=0.7,cmap='jet')
+            # plt.show()
+            
+            # plt.imshow(img)
+            # plt.imshow(intersection_mask,alpha=0.5)
             # plt.show()
             if inter_numb > 0:
                 depth_map = np.array(depth_model(im)["depth"]) / 255
                 
                 tool_int = np.logical_and(intersection_mask,tool_mask)
                 tissue_int = np.logical_and(intersection_mask,tissue_mask)
+
                 # plt.imshow(tool_int)
                 # plt.show()
                 # plt.imshow(tissue_int)
@@ -122,11 +155,13 @@ def vis(model,im,depth_model,score_thresh=0.3, mask_thresh=0.3):
                 print(med_tool)
                 print(med_tissue)
                 
+                tolerance = 0.015
                 
+                frac_within = np.mean(np.abs(depth_tool_int - med_tissue) <= tolerance)
+
+                contact = (abs(med_tool - med_tissue) <= tolerance) and (frac_within >= 0.5)
                 
-                tolerance = 0.03
-                
-                if abs(med_tool - med_tissue) <= tolerance:
+                if contact:
                     pairs.append((tool_mask,tissue_mask))
                 
         
@@ -152,7 +187,7 @@ def vis(model,im,depth_model,score_thresh=0.3, mask_thresh=0.3):
 if __name__ == '__main__':
     model = get_maskrcnn()
     model.to(DEVICE)
-    img_fp = "../Full Dataset/val/video0273_frame120.jpg"
+    img_fp = "../Full Dataset/val/video0006_frame56.jpg"
     sd = torch.load(CHECKPOINT, map_location=DEVICE)
     missing, unexpected = model.load_state_dict(sd, strict=False)
     
