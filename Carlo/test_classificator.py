@@ -4,6 +4,7 @@ import torch.nn as nn
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, confusion_matrix, balanced_accuracy_score
 from transformers import pipeline
 from torchvision.models import resnet18
+from Model import CNN_TCN_Classifier
 
 TEST_VIDEOS_DIR = '../Dataset/video_dataset/videos/test/'   
 TEST_LABELS_DIR = '../Dataset/video_dataset/labels/test/'   
@@ -12,22 +13,18 @@ SEQ_LEN         = 5
 DEVICE          = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 YOLO_WEIGHTS    = '../Common Code/runs_OLD_DATASET/segment/train/weights/best.pt'  
-TCN_WEIGHTS     = 'model_TCN_V3.pt'                              
+TCN_WEIGHTS     = 'model_TCN_V4.pt'                              
 USE_DEPTH    = True   
 VERBOSE      = True
 
-# Parametri modello/pipeline
 IMG_SIZE   = 224
 SEQ_LEN    = 5
-CONF_THR   = 0.45     # filtro confidenza YOLO
-IOU_DUP_THR= 0.90     # dedup maschere sovrapposte
-D_MAX      = 30       # px max per pairing "nearest"
+CONF_THR   = 0.45     
+IOU_DUP_THR= 0.90     
+D_MAX      = 30       
 DEVICE     = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-# =========================
-# UTILS COMUNI
-# =========================
 def normalize(name: str) -> str:
     return re.sub(r'[^A-Za-z0-9]', '', name).lower()
 
@@ -93,77 +90,7 @@ def make_clip_from_bbox(cap, idx_center, bbox, depth_map_center, tool_bin_center
     return np.stack(seq, axis=0)  # T,C,H,W
 
 
-# =========================
-# MODELLO (IDENTICO AL TRAINING)
-# =========================
-class CNN_TCN_Classifier(nn.Module):
-    def __init__(self, tcn_channels=[256, 128], sequence_length=SEQ_LEN, num_classes=1, pretrained=True):
-        super().__init__()
-        backbone = resnet18(pretrained=pretrained)
-
-        old_w = backbone.conv1.weight.data.clone()  # [64,3,7,7]
-        backbone.conv1 = nn.Conv2d(
-            in_channels=5,
-            out_channels=backbone.conv1.out_channels,
-            kernel_size=backbone.conv1.kernel_size,
-            stride=backbone.conv1.stride,
-            padding=backbone.conv1.padding,
-            bias=False
-        )
-        nn.init.kaiming_normal_(backbone.conv1.weight, nonlinearity='relu')
-        with torch.no_grad():
-            backbone.conv1.weight[:, :3] = old_w                      # copia RGB
-            backbone.conv1.weight[:, 3:5] = old_w.mean(dim=1, keepdim=True)  # media per depth+mask
-
-        self.cnn = nn.Sequential(*list(backbone.children())[:-2])
-        self.pool2d = nn.AdaptiveAvgPool2d((1, 1))
-
-        tcn_layers = []
-        num_inputs = 512
-        for i, out_ch in enumerate(tcn_channels):
-            dilation = 2 ** i
-            tcn_layers += [
-                nn.Conv1d(
-                    in_channels=num_inputs if i == 0 else tcn_channels[i-1],
-                    out_channels=out_ch,
-                    kernel_size=3,
-                    padding=dilation,
-                    dilation=dilation
-                ),
-                nn.ReLU(),
-                nn.Dropout(0.2)
-            ]
-        self.tcn = nn.Sequential(*tcn_layers)
-        self.pool1d = nn.AdaptiveAvgPool1d(1)
-        self.classifier = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(tcn_channels[-1], num_classes)
-        )
-
-    def forward(self, x):
-        B, T, C, H, W = x.shape
-        x = x.view(B * T, C, H, W)
-        x = self.cnn(x)
-        x = self.pool2d(x)
-        x = x.view(B, T, 512)
-        x = x.permute(0, 2, 1)
-        x = self.tcn(x)
-        x = self.pool1d(x)
-        out = self.classifier(x)  # logit
-        return out
-
-
-# =========================
-# COSTRUZIONE COPPIE/LABEL — COMPATIBILE CON IL TUO create_train()
-# =========================
 def build_pairs_from_labels(objs, H, W):
-    """
-    Replica la tua logica:
-      - len==2: un instrument + un tissue con is_tti==1  -> positivo (1)
-      - len==3: tissue is_tti==1 + instrument interagente (1) + instrument non-interagente (0)
-      - len>=4: per ogni instrument x ogni tissue positivo -> label 1 se instrument_type == interaction_tool, altrimenti 0
-    Ritorna: lista di tuple (tool_poly_pts, tissue_poly_pts, label, tool_name, interaction_tool_name)
-    """
     L = len(objs)
     pairs = []
     if L < 2:
@@ -200,7 +127,6 @@ def build_pairs_from_labels(objs, H, W):
                     tissue_poly = mask_from_tti(o)
                     inter_name  = o.get('interaction_tool')
                 else:
-                    # trattato come instrument non-interagente
                     if 'instrument_polygon' in o:
                         non_tool_poly = mask_from_instr(o)
                         non_tool_name = o.get('instrument_type')
@@ -233,17 +159,15 @@ def build_pairs_from_labels(objs, H, W):
                 lab = 1 if (inter_name == name) else 0
                 pairs.append((ip, tp, lab, name, inter_name))
 
-    return pairs  # [(tool_poly, tissue_poly, label, tool_name, inter_name)]
+    return pairs  
 
 
-# =========================
-# ORACLE (SOLO CLASSIFICATORE) — COMPATIBILE CON LA LOGICA SOPRA
-# =========================
 def evaluate_oracle(depth_pipe, model, labels_dir, videos_dir, IMG_SIZE=224, SEQ_LEN=5):
     model.eval()
     y_true, y_prob = [], []
 
     videos = [v for v in os.listdir(videos_dir) if not v.startswith('.')]
+    i = 1
     for vid in videos:
         vpath = os.path.join(videos_dir, vid)
         cap, fcount = _load_video(vpath)
@@ -255,7 +179,9 @@ def evaluate_oracle(depth_pipe, model, labels_dir, videos_dir, IMG_SIZE=224, SEQ
             cap.release(); continue
         labels = json.load(open(jpath, 'r'))['labels']
 
-        print(f"[ORACLE] Video: {vid}  ({fcount} frames)")
+        print(f"[ORACLE] Video ({i}/102): {vid}  ({fcount} frames)")
+
+        i+=1
 
         for idx_s, objs in labels.items():
             idx = int(idx_s)
@@ -265,7 +191,6 @@ def evaluate_oracle(depth_pipe, model, labels_dir, videos_dir, IMG_SIZE=224, SEQ
             frame_c_bgr = _load_frame(cap, idx, rgb=False)
             H, W = frame_c_bgr.shape[:2]
 
-            # depth del frame centrale UNA volta
             depth_map = np.array(
                 depth_pipe(Image.fromarray(cv2.cvtColor(frame_c_bgr, cv2.COLOR_BGR2RGB)))['depth'],
                 dtype=np.float32
@@ -296,7 +221,6 @@ def evaluate_oracle(depth_pipe, model, labels_dir, videos_dir, IMG_SIZE=224, SEQ
         print("ORACLE: nessun sample.")
         return 0.5, {}
 
-    # sweep soglia per best F1
     best_f1, best_thr = -1.0, 0.5
     for thr in np.linspace(0.05, 0.95, 19):
         y_pred = [1 if p >= thr else 0 for p in y_prob]
@@ -323,7 +247,7 @@ def evaluate_oracle(depth_pipe, model, labels_dir, videos_dir, IMG_SIZE=224, SEQ
         cm=confusion_matrix(y_true, ypB).tolist()
     )
 
-    print("\n===== ORACLE (solo classificatore, logica compatibile) =====")
+    print("\n===== ORACLE (solo classificatore) =====")
     print(f"samples={len(y_true)}  pos={int(np.sum(y_true))}")
     print(f"@0.5  acc={metrics_50['acc']:.3f}  f1={metrics_50['f1']:.3f}  prec={metrics_50['prec']:.3f}  rec={metrics_50['rec']:.3f}  ba={metrics_50['ba']:.3f}")
     print(f"@best acc={metrics_best['acc']:.3f}  f1={metrics_best['f1']:.3f}  prec={metrics_best['prec']:.3f}  rec={metrics_best['rec']:.3f}  ba={metrics_best['ba']:.3f}  thr≈{best_thr:.2f}")
@@ -338,6 +262,5 @@ if __name__ == '__main__':
     model = CNN_TCN_Classifier(sequence_length=SEQ_LEN).to(DEVICE)
     model.load_state_dict(torch.load(TCN_WEIGHTS, map_location=DEVICE), strict=True)
 
-    # 2) ORACLE: ricava soglia ottimale
     best_thr, _ = evaluate_oracle(depth_pipe, model, TEST_LABELS_DIR, TEST_VIDEOS_DIR)
     print(f"\nSoglia TCN suggerita dall'ORACLE: {best_thr:.2f}")
