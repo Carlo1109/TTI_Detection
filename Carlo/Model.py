@@ -2,10 +2,14 @@ import torch
 import torch.nn as nn
 from torchvision.models import resnet18
 
+SEQ_LEN      = 5
+
 class CNN_TCN_Classifier(nn.Module):
-    def __init__(self, tcn_channels=[256, 128], sequence_length=7, num_classes=1, pretrained=True):
-        super(CNN_TCN_Classifier, self).__init__()
+    def __init__(self, tcn_channels=[256, 128], sequence_length=SEQ_LEN, num_classes=1, pretrained=True):
+        super().__init__()
         backbone = resnet18(pretrained=pretrained)
+
+        old_w = backbone.conv1.weight.data.clone()  
         backbone.conv1 = nn.Conv2d(
             in_channels=5,
             out_channels=backbone.conv1.out_channels,
@@ -14,11 +18,16 @@ class CNN_TCN_Classifier(nn.Module):
             padding=backbone.conv1.padding,
             bias=False
         )
-        self.cnn = nn.Sequential(*list(backbone.children())[:-2])  
+        nn.init.kaiming_normal_(backbone.conv1.weight, nonlinearity='relu')
+        with torch.no_grad():
+            backbone.conv1.weight[:, :3] = old_w                      
+            backbone.conv1.weight[:, 3:5] = old_w.mean(dim=1, keepdim=True)  
+
+        self.cnn = nn.Sequential(*list(backbone.children())[:-2])
         self.pool2d = nn.AdaptiveAvgPool2d((1, 1))
-        
+
         tcn_layers = []
-        num_inputs = 512  
+        num_inputs = 512
         for i, out_ch in enumerate(tcn_channels):
             dilation = 2 ** i
             tcn_layers += [
@@ -34,22 +43,19 @@ class CNN_TCN_Classifier(nn.Module):
             ]
         self.tcn = nn.Sequential(*tcn_layers)
         self.pool1d = nn.AdaptiveAvgPool1d(1)
-
         self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(tcn_channels[-1], num_classes),
-            nn.Sigmoid()
+            nn.Linear(tcn_channels[-1], num_classes)
         )
 
     def forward(self, x):
         B, T, C, H, W = x.shape
         x = x.view(B * T, C, H, W)
-        x = self.cnn(x)                   
-        x = self.pool2d(x)               
-        x = x.view(B, T, 512)            
-        x = x.permute(0, 2, 1)           
-        x = self.tcn(x)                  
-        x = self.pool1d(x)               
-        out = self.classifier(x)         
+        x = self.cnn(x)
+        x = self.pool2d(x)
+        x = x.view(B, T, 512)
+        x = x.permute(0, 2, 1)
+        x = self.tcn(x)
+        x = self.pool1d(x)
+        out = self.classifier(x)  # logit
         return out
-
