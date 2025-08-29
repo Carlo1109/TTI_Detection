@@ -8,6 +8,8 @@ import torchvision.transforms as T
 import torchvision
 from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+import os
+import random
 
 
 IMG_SIZE    = (256, 256)
@@ -95,9 +97,9 @@ def vis(model,im,depth_model,score_thresh=0.25, mask_thresh=0.6):
         mask_bin = mask.squeeze(0).cpu().numpy() >= mask_thresh
         mask_bin = cv2.resize(mask_bin.astype(np.uint8),(W,H),cv2.INTER_NEAREST)
         
-        # plt.imshow(img)
-        # plt.imshow(np.ma.masked_where(mask_bin == 0, mask_bin) )
-        # plt.show()
+        plt.imshow(img)
+        plt.imshow(np.ma.masked_where(mask_bin == 0, mask_bin) )
+        plt.show()
         
         x1, y1, x2, y2 = box
         x1 *= scale_x ; x2 *= scale_x ;y1 *= scale_y ; y2 *= scale_y
@@ -113,7 +115,16 @@ def vis(model,im,depth_model,score_thresh=0.25, mask_thresh=0.6):
     for tool in tool_list:
         print("tool found")
         tool_mask = tool[0]
-        tool_bbox = tool[1]
+        
+        depth_map = np.array(depth_model(im)["depth"]) / 255
+        tool_depth = depth_map[tool_mask.astype(bool)]
+        
+        med_depth = np.percentile(tool_depth,15)
+        
+        t = np.logical_and(tool_mask , depth_map < med_depth)
+        
+        tool_mask = t
+
 
         for tissue in tissue_list:
             tissue_mask = tissue[0]
@@ -126,48 +137,57 @@ def vis(model,im,depth_model,score_thresh=0.25, mask_thresh=0.6):
             intersection_mask = np.logical_and(expand_mask(tool_mask,10),expand_mask(tissue_mask,10))
             inter_numb = intersection_mask.sum()
             
-            # plt.imshow(img)
-            # plt.imshow(expand_mask(tool_mask,10),alpha=0.7)
-            # plt.imshow(expand_mask(tissue_mask,10),alpha=0.7,cmap='jet')
-            # plt.show()
+            plt.imshow(img)
+            plt.imshow(expand_mask(np.ma.masked_where(tool_mask == 0, tool_mask)  ,10),alpha=0.7)
+            plt.imshow(expand_mask(np.ma.masked_where(tissue_mask == 0, tissue_mask),10),alpha=0.7)
+            plt.show()
             
-            # plt.imshow(img)
-            # plt.imshow(intersection_mask,alpha=0.5)
-            # plt.show()
-            if inter_numb > 0:
-                depth_map = np.array(depth_model(im)["depth"]) / 255
+            if inter_numb > 15:
+                plt.imshow(img)
+                plt.imshow(np.ma.masked_where(intersection_mask == 0, intersection_mask)  ,alpha=0.8)
+                plt.title("PRE EXPAND")
+                plt.show()
                 
-                tool_int = np.logical_and(intersection_mask,tool_mask)
-                tissue_int = np.logical_and(intersection_mask,tissue_mask)
-
+                intersection_mask = expand_mask(intersection_mask,20)
+                
+                plt.imshow(img)
+                plt.imshow(np.ma.masked_where(intersection_mask == 0, intersection_mask),alpha=0.8)
+                plt.show()
+                tool_int = np.logical_and(intersection_mask.astype(bool),tool_mask.astype(bool))
+                tissue_int = np.logical_and(intersection_mask.astype(bool),tissue_mask.astype(bool))
+                
+                if not np.any(tool_int) or not np.any(tissue_int):
+                    continue
+  
                 # plt.imshow(tool_int)
                 # plt.show()
                 # plt.imshow(tissue_int)
                 # plt.show()
                 
-                depth_tool_int = depth_map[tool_int]
-                depth_tissue_int = depth_map[tissue_int]
+                depth_tool_int = depth_map[tool_int.astype(bool)]
+                depth_tissue_int = depth_map[tissue_int.astype(bool)]
                 
                 #depth median
-                med_tool = np.median(depth_tool_int)
-                med_tissue = np.median(depth_tissue_int)
-   
+                med_tool = np.mean(depth_tool_int)
+                med_tissue = np.mean(depth_tissue_int)
+                
                 print(med_tool)
                 print(med_tissue)
                 
-                tolerance = 0.015
-                
-                frac_within = np.mean(np.abs(depth_tool_int - med_tissue) <= tolerance)
+                if np.isnan(med_tool) or np.isnan(med_tissue):
+                    continue
 
-                contact = (abs(med_tool - med_tissue) <= tolerance) and (frac_within >= 0.5)
                 
-                if contact:
+                tolerance = 0.03
+    
+                
+                if np.abs(med_tool - med_tissue) <= tolerance:
                     pairs.append((tool_mask,tissue_mask))
                 
         
         
-    plt.imshow(img)
-    plt.show()
+    if len(pairs) == 0:
+        print("NO TTI FOUND")
     for pair in pairs:  
         plt.imshow(img)
         to = np.ma.masked_where(pair[0] == 0, pair[0])  
@@ -187,9 +207,15 @@ def vis(model,im,depth_model,score_thresh=0.25, mask_thresh=0.6):
 if __name__ == '__main__':
     model = get_maskrcnn()
     model.to(DEVICE)
-    img_fp = "../Full Dataset/val/video0006_frame56.jpg"
+    img_fp = "../Full Dataset/val/video0194_frame104.jpg"
     sd = torch.load(CHECKPOINT, map_location=DEVICE)
     missing, unexpected = model.load_state_dict(sd, strict=False)
     
     depth = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
-    vis(model,img_fp,depth)
+    
+    images = os.listdir("../Full Dataset/val/")
+    random.shuffle(images)
+    
+    for img_fp in images:
+        img_fp = os.path.join('../Full Dataset/val/',img_fp)
+        vis(model,img_fp,depth)
