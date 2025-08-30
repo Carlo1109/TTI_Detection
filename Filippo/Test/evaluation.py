@@ -153,6 +153,10 @@ def vis(model,im,depth_model,score_thresh=0.25, mask_thresh=0.6):
                 plt.imshow(img)
                 plt.imshow(np.ma.masked_where(intersection_mask == 0, intersection_mask),alpha=0.8)
                 plt.show()
+                
+                plt.imshow(depth_map)
+                plt.show()
+                
                 tool_int = np.logical_and(intersection_mask.astype(bool),tool_mask.astype(bool))
                 tissue_int = np.logical_and(intersection_mask.astype(bool),tissue_mask.astype(bool))
                 
@@ -178,7 +182,7 @@ def vis(model,im,depth_model,score_thresh=0.25, mask_thresh=0.6):
                     continue
 
                 
-                tolerance = 0.03
+                tolerance = 0.06
     
                 
                 if np.abs(med_tool - med_tissue) <= tolerance:
