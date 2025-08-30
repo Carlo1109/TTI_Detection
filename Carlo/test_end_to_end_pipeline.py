@@ -68,7 +68,7 @@ def _load_frame(cap, idx, rgb=False):
     cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
     ok, fr = cap.read()
     if not ok:
-        raise ValueError(f"Impossibile leggere frame {idx}")
+        raise ValueError(f"Failed to read frame {idx}")
     if rgb:
         fr = cv2.cvtColor(fr, cv2.COLOR_BGR2RGB)
     return fr
@@ -323,7 +323,7 @@ def test_end_to_end():
         cap.release()
 
     if len(y_true) == 0:
-        print("Nessuna coppia valutata in E2E.")
+        print("No pairs evaluated in E2E")
         return
 
     acc  = accuracy_score(y_true, y_pred)
@@ -334,15 +334,15 @@ def test_end_to_end():
     ba   = balanced_accuracy_score(y_true, y_pred)
     cm   = confusion_matrix(y_true, y_pred)
 
-    print("\n===== RISULTATI E2E (pairing + classificazione) =====")
+    print("\n===== Results E2E (pairing + classification) =====")
     print(f"Samples: {len(y_true)}  |  Total predicted pairs: {total_pairs}")
     print(f"Accuracy: {acc:.4f}")
     print(f"F1 macro: {f1m:.4f}  |  F1 weighted: {f1w:.4f}")
     print(f"Precision: {prec:.4f}  |  Recall: {rec:.4f}")
     print("Confusion matrix:\n", cm)
     print(f"Balanced accuracy: {ba:.4f}")
-    print(f"Wrong pairing (tool non in GT): {wrong_pairing}")
-    print(f"Missed positives (GT non coperti da predizioni positive): {missed_pos}")
+    print(f"Wrong pairing (tool not in GT): {wrong_pairing}")
+    print(f"Missed positives: {missed_pos}")
 
 if __name__ == '__main__':
     test_end_to_end()

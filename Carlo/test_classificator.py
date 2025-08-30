@@ -36,7 +36,7 @@ def _load_frame(cap, idx, rgb=False):
     cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
     ok, fr = cap.read()
     if not ok:
-        raise ValueError(f"Impossibile leggere frame {idx}")
+        raise ValueError(f"Failed to read frame {idx}")
     if rgb:
         fr = cv2.cvtColor(fr, cv2.COLOR_BGR2RGB)
     return fr  # BGR o RGB
@@ -200,7 +200,7 @@ def evaluate_oracle(depth_pipe, model, labels_dir, videos_dir, IMG_SIZE=224, SEQ
             if not pairs:
                 continue
 
-            print(f"   Frame {idx}/{fcount} — coppie GT generate: {len(pairs)}")
+            print(f"   Frame {idx}/{fcount} — pairs GT generated: {len(pairs)}")
 
             for (tool_poly, tissue_poly, label, tool_name, inter_name) in pairs:
                 bbox, tool_bin, tissue_bin = extract_union_bbox_from_poly(tool_poly, tissue_poly, H, W)
@@ -218,7 +218,7 @@ def evaluate_oracle(depth_pipe, model, labels_dir, videos_dir, IMG_SIZE=224, SEQ
         cap.release()
 
     if not y_true:
-        print("ORACLE: nessun sample.")
+        print("ORACLE: zero samples.")
         return 0.5, {}
 
     best_f1, best_thr = -1.0, 0.5
@@ -247,7 +247,7 @@ def evaluate_oracle(depth_pipe, model, labels_dir, videos_dir, IMG_SIZE=224, SEQ
         cm=confusion_matrix(y_true, ypB).tolist()
     )
 
-    print("\n===== ORACLE (solo classificatore) =====")
+    print("\n===== ORACLE (just classifier) =====")
     print(f"samples={len(y_true)}  pos={int(np.sum(y_true))}")
     print(f"@0.5  acc={metrics_50['acc']:.3f}  f1={metrics_50['f1']:.3f}  prec={metrics_50['prec']:.3f}  rec={metrics_50['rec']:.3f}  ba={metrics_50['ba']:.3f}")
     print(f"@best acc={metrics_best['acc']:.3f}  f1={metrics_best['f1']:.3f}  prec={metrics_best['prec']:.3f}  rec={metrics_best['rec']:.3f}  ba={metrics_best['ba']:.3f}  thr≈{best_thr:.2f}")
@@ -263,4 +263,4 @@ if __name__ == '__main__':
     model.load_state_dict(torch.load(TCN_WEIGHTS, map_location=DEVICE), strict=True)
 
     best_thr, _ = evaluate_oracle(depth_pipe, model, TEST_LABELS_DIR, TEST_VIDEOS_DIR)
-    print(f"\nSoglia TCN suggerita dall'ORACLE: {best_thr:.2f}")
+    print(f"\nThreshold from ORACLE mode: {best_thr:.2f}")
