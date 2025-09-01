@@ -7,11 +7,11 @@ from transformers import pipeline
 from torchvision.models import resnet18
 from Model import CNN_TCN_Classifier
 
-TEST_VIDEOS_DIR = '../Dataset/video_dataset/videos/val/'
-TEST_LABELS_DIR = '../Dataset/video_dataset/labels/val/'
+TEST_VIDEOS_DIR = '../Dataset/video_dataset/videos/test/'
+TEST_LABELS_DIR = '../Dataset/video_dataset/labels/test/'
 
 YOLO_WEIGHTS = '../Common Code/runs_OLD_DATASET/segment/train/weights/best.pt'
-TCN_WEIGHTS  = 'model_TCN_V4.pt'   
+TCN_WEIGHTS  = 'model_TCN_fold4.pt'   
 THR_TCN      = 0.10
 
 IMG_SIZE     = 224
