@@ -1,8 +1,8 @@
 import os, json, cv2, numpy as np, matplotlib.pyplot as plt, random
 from pycocotools import mask as mask_utils
 
-imgs_path = './Nuova cartella (2)/img/'
-masks_path = './Nuova cartella (2)/masks/'
+imgs_path = './step_1_seg_train/images/'
+masks_path = './step_1_seg_train/masks/'
 
 def decode_rle(rle):
     if isinstance(rle.get("counts"), str): rle = dict(rle); rle["counts"] = rle["counts"].encode("utf-8")
