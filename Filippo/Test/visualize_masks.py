@@ -9,7 +9,7 @@ def decode_rle(rle):
     return mask_utils.decode(rle).astype(np.uint8)
 
 img_files = [f for f in os.listdir(imgs_path) if f.lower().endswith(('.png','.jpg','.jpeg'))]
-random.shuffle(img_files)   # <<-- ordine casuale
+random.shuffle(img_files)   
 
 for fn in img_files:
     base = os.path.splitext(fn)[0]

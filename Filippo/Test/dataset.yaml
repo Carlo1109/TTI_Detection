@@ -1,0 +1,8 @@
+train:  /kaggle/input/dataset-for-embeddings/step_1_seg_train/step_1_seg_train/images/train   # path to training images
+val:  /kaggle/input/dataset-for-embeddings/step_1_seg_train/step_1_seg_train/images/val   # path to training images
+names:
+  0: tissue
+  1: tool
+
+
+
