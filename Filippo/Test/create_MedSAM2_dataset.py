@@ -24,8 +24,9 @@ def create_datatset():
         if i == 50:
             break
         
-        full_path = os.path.join(OUTPUT_FOLDER,video)
+        full_path = os.path.join(OUTPUT_FOLDER,video.replace('.mp4',''))
         os.mkdir(full_path)
+        
         
         print(f'Processing Video {i}/{len(videos)}')
         
