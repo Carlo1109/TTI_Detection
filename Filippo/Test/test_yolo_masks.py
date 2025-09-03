@@ -36,12 +36,14 @@ if __name__ == '__main__':
             # if len(inds0) > 0:
             #     mask0 = torch.any(masks[inds0], dim=0)
             #     out_mask[mask0] = 1
-            print(masks.shape[0])
+            print(clss)
             for i in range(masks.shape[0]):
-                mask_i = masks[i] > 0  
-                out_mask[mask_i] = i + 1
-                
-
+                if clss[i] == 1:
+                    mask_i = masks[i] > 0  
+                    out_mask[mask_i] = 1
+                else:
+                   mask_i = masks[i] > 0  
+                   out_mask[mask_i] = i + 2
             
             # inds1 = torch.where(clss == 1)[0]
             # if len(inds1) > 0:
