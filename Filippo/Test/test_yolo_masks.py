@@ -31,17 +31,22 @@ if __name__ == '__main__':
             clss = boxes[:, 5]
             out_mask = torch.zeros_like(masks[0], dtype=torch.uint8)
 
-            # classe 0 → valore 1
-            inds0 = torch.where(clss == 0)[0]
-            if len(inds0) > 0:
-                mask0 = torch.any(masks[inds0], dim=0)
-                out_mask[mask0] = 1
+            
+            # inds0 = torch.where(clss == 0)[0]
+            # if len(inds0) > 0:
+            #     mask0 = torch.any(masks[inds0], dim=0)
+            #     out_mask[mask0] = 1
+            print(masks.shape[0])
+            for i in range(masks.shape[0]):
+                mask_i = masks[i] > 0  
+                out_mask[mask_i] = i + 1
+                
 
-            # classe 1 → valore 2
-            inds1 = torch.where(clss == 1)[0]
-            if len(inds1) > 0:
-                mask1 = torch.any(masks[inds1], dim=0)
-                out_mask[mask1] = 2
+            
+            # inds1 = torch.where(clss == 1)[0]
+            # if len(inds1) > 0:
+            #     mask1 = torch.any(masks[inds1], dim=0)
+            #     out_mask[mask1] = 2
 
             # save to file
             cv2.imwrite('binary_mask.png', out_mask.cpu().numpy())          
