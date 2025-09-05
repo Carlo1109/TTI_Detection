@@ -18,6 +18,10 @@ CHECKPOINT  = './runs_sampled_dataset/segment/train/weights/best.pt'
 LABELS_PATH = '../../Dataset/video_dataset/labels/val/'
 VIDEOS_PATH = '../../Dataset/video_dataset/videos/val/'
 
+LABELS_TXT_PATH = '../../Dataset/evaluation/labels/'
+BINARY_MASKS_PATH = './Evaluation_dataset/labels/'
+IMAGES_FOR_EVAL_PATH ='./Evaluation_dataset/images/'
+
 
 
 def create_test():
