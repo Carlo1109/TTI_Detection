@@ -16,3 +16,4 @@ Filippo/Test/student_cycle_10.pt
 *.zip
 /Filippo/Test/medSAM2_dataset
 /Filippo/Test/runs_compl_dataset
+/Filippo/Test/runs_sampled_dataset
