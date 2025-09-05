@@ -3,18 +3,185 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from transformers import pipeline
-from PIL import Image
-
 import os
 import random
 from ultralytics import YOLO
+from utils import _load_video, _load_frame, normalize , get_polygon ,  parse_mask_string ,to_tool_id , to_tti_id , points_to_mask
+import json
+
 
 
 IMG_SIZE    = (256, 256)
 DEVICE      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CHECKPOINT  = './runs_sampled_dataset/segment/train/weights/best.pt'
 
+LABELS_PATH = '../../Dataset/video_dataset/labels/val/'
+VIDEOS_PATH = '../../Dataset/video_dataset/videos/val/'
 
+
+
+def create_test():
+    
+    videos = os.listdir(VIDEOS_PATH)
+
+    
+    count = 0
+    
+    
+    for video in videos:
+       
+        print(f"Processing video {count}/{len(videos)}: {video}")
+        cap, frame_count = _load_video(os.path.join(VIDEOS_PATH, video))
+
+        base_video = os.path.splitext(video)[0]
+        key_video  = normalize(base_video)
+
+
+        matched_json = None
+        for fname in os.listdir(LABELS_PATH):
+            name_no_ext = os.path.splitext(fname)[0]
+            if normalize(name_no_ext) == key_video:
+                matched_json = os.path.join(LABELS_PATH, fname)
+                break
+
+        if not matched_json:
+            print(f"[WARNING] No JSON file for «{video}». Skipped")
+            count += 1
+            continue
+
+        with open(matched_json, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            frame_indices = list(data['labels'].keys())
+            frame_indices = [int(idx) for idx in frame_indices if len(data['labels'][idx]) != 0]
+
+
+        for idx in frame_indices:
+            to_write = ''
+            masks = []
+            if int(idx) > 150:
+                continue
+            frame = _load_frame(cap, idx)
+            
+            W, H = frame.size
+            
+            len_dict = len(data['labels'][str(idx)])
+            
+            if len_dict < 2:
+                continue
+
+            frame.save('./Evaluation_dataset/images/'+ f'video{count:04d}_frame{idx:04d}.jpg')
+            
+            tissue_mask = None
+            tool_mask = None
+            non_tool_mask = None
+            tool_class = 0
+            tti_class = 0
+            non_tool_class = 0
+            
+            if len_dict == 2:
+                for j in range(len_dict):
+                    if not bool(data['labels'][str(idx)][j].keys()):
+                        continue
+                    
+                    if 'is_tti' in data['labels'][str(idx)][j].keys():
+                            if data['labels'][str(idx)][j]['is_tti'] == 1:
+                                tti_polygon = data['labels'][str(idx)][j]['tti_polygon']
+                                tti_class = to_tti_id(data['labels'][str(idx)][j]['interaction_type'])
+       
+                                tti_polygon_str = get_polygon(tti_polygon)
+                                tissue_mask = parse_mask_string(tti_polygon_str,H,W)                   
+                                
+                            else:
+                                continue
+                    else:
+                        instrument_polygon = data['labels'][str(idx)][j]['instrument_polygon']
+                        instrument_polygon_str = get_polygon(instrument_polygon)
+                        tool_mask = parse_mask_string(instrument_polygon_str,H,W)
+                        tool_class = to_tool_id(data['labels'][str(idx)][j]['instrument_type'])
+                       
+                        
+
+                if tool_mask is not None and tissue_mask is not None:
+                    to_write += '1' + ' ' + str(tool_mask) + ' ' + str(tissue_mask)  + ' ' + '\n'
+                    masks.append(tool_mask)
+                    masks.append(tissue_mask)
+                    # y_train.append(1)
+          
+          
+            if len_dict == 3:
+                for j in range(len_dict):
+                    if not bool(data['labels'][str(idx)][j].keys()):
+                        continue
+                    if 'is_tti' in data['labels'][str(idx)][j].keys():
+                        if data['labels'][str(idx)][j]['is_tti'] == 1:
+                            tti_class = to_tti_id(data['labels'][str(idx)][j]['interaction_type']) 
+                            tti_polygon = data['labels'][str(idx)][j]['tti_polygon']
+                            tti_polygon_str = get_polygon(tti_polygon)
+                            tissue_mask = parse_mask_string(tti_polygon_str,H,W)
+                        else:
+                            non_int_polygon = data['labels'][str(idx)][j]['instrument_polygon']
+                            non_int_polygon_str = get_polygon(non_int_polygon)
+                            non_tool_mask = parse_mask_string(non_int_polygon_str,H,W)
+                            non_tool_class = to_tool_id(data['labels'][str(idx)][j]['non_interaction_tool'])
+                    else:
+                        instrument_polygon = data['labels'][str(idx)][j]['instrument_polygon']
+                        instrument_polygon_str = get_polygon(instrument_polygon)
+                        tool_mask = parse_mask_string(instrument_polygon_str,H,W)
+                        tool_class = to_tool_id(data['labels'][str(idx)][j]['instrument_type'])
+
+                if tool_mask is not None and tissue_mask is not None:
+                    to_write += '1' + ' ' + str(tool_mask) + ' ' + str(tissue_mask)  + ' ' + '\n'
+                    masks.append(tool_mask)
+                    masks.append(tissue_mask)
+                    # y_train.append(1)   
+                # if non_tool_mask is not None and tissue_mask is not None:       
+                #     to_write += '0' + ' ' + str(non_tool_class) + ' ' + str(tti_class)  + ' ' + '\n'
+                #     # y_train.append(0)          
+                
+            
+            if len_dict == 4:
+                pair_list = []
+                for j in range(len_dict):
+                    if not bool(data['labels'][str(idx)][j].keys()):
+                        continue
+                    if 'is_tti' in data['labels'][str(idx)][j].keys():
+                        if data['labels'][str(idx)][j]['is_tti'] == 1:
+                            tti_class = to_tti_id(data['labels'][str(idx)][j]['interaction_type'])
+                            tti_polygon = data['labels'][str(idx)][j]['tti_polygon']
+                            tti_polygon_str = get_polygon(tti_polygon)
+                            tissue_mask = parse_mask_string(tti_polygon_str,H,W)
+                            interaction_tool_name = data['labels'][str(idx)][j]['interaction_tool']
+                            pair_list.append((tissue_mask, interaction_tool_name , tti_class))
+        
+                for pair in pair_list:
+                    for j in range(len_dict):
+                        if not bool(data['labels'][str(idx)][j].keys()):
+                            continue
+                        if 'is_tti' not in data['labels'][str(idx)][j].keys():
+                            tool_name = pair[1]
+                            tissue_mask = pair[0]
+                            tti_class = pair[2]
+                            instrument_polygon = data['labels'][str(idx)][j]['instrument_polygon']
+                            instrument_polygon_str = get_polygon(instrument_polygon)
+                            tool_mask = parse_mask_string(instrument_polygon_str,H,W)
+                            tool_class = to_tool_id(tool_name)
+                            
+                            if tissue_mask is not None and tool_mask is not None:
+                                if tool_name == data['labels'][str(idx)][j]['instrument_type']:
+                                    # y_train.append(1)   
+                                    to_write += '1' + ' ' + str(tool_mask) + ' ' + str(tissue_mask)  + ' ' + '\n'
+                                    masks.append(tool_mask)
+                                    masks.append(tissue_mask)
+                                # else:
+                                    # y_train.append(0) 
+                                    # to_write += '0' + ' ' + str(to_tool_id(data['labels'][str(idx)][j]['instrument_type'])) + ' ' + str(tti_class)  + ' ' + '\n'
+              
+            # with open('./Evaluation_dataset/labels/'+ f'video{count:04d}_frame{idx:04d}.txt', 'w', encoding='utf-8') as f:
+            #     f.write(to_write) 
+            msk = points_to_mask(masks,H,W)
+            cv2.imwrite('./Evaluation_dataset/labels/'+ f'video{count:04d}_frame{idx:04d}.png',msk)
+                                                        
+        count += 1
 
 
 
@@ -146,9 +313,9 @@ def vis(model,im,depth_model):
         plt.show()
         
     
-
-
-if __name__ == '__main__':
+    
+    
+def evaluate():
     model = YOLO(CHECKPOINT)
     img_fp = "../Full Dataset/val/video0194_frame104.jpg"
     sd = torch.load(CHECKPOINT, map_location=DEVICE)
@@ -162,3 +329,8 @@ if __name__ == '__main__':
     for img_fp in images:
         img_fp = os.path.join('../Full Dataset/val/',img_fp)
         vis(model,img_fp,depth)
+
+
+
+if __name__ == '__main__':
+    create_test()
