@@ -2,7 +2,7 @@ import os, json, cv2, numpy as np, matplotlib.pyplot as plt, random
 
 
 IMGS_PATH = './medSAM2_dataset/images/'
-MASKS_PATH = './medSAM2_dataset/binary_mask_msam_for_val/'
+MASKS_PATH = './medSAM2_dataset/binary_masks_msam/'
 # OUT_IMAGE = './step_1_seg_train/images/train/'
 # OUT_LABELS = './step_1_seg_train/labels/train/'
 OUT_IMAGE = './step_1_seg_train/test_img/'
@@ -59,7 +59,12 @@ if __name__ == '__main__':
         
         frames = os.listdir(imgs_path)
         
+        frame_count = 0
         for frame in frames:
+            frame_count += 1
+            if frame_count % 5 != 0:
+                continue
+            
             msk = os.path.join(mask_path,frame).replace('.jpg','.png')
             img = os.path.join(imgs_path,frame)
             
