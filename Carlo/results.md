@@ -147,15 +147,31 @@ Missed positives: 12
 ##### --- Final Results ---
 
 Accuracy: 0.8773 +/- 0.0159
+
 F1 macro: 0.8703 +/- 0.0178
+
 F1 weighted: 0.8747 +/- 0.0160
 
 Precision: 0.8424 +/- 0.0202
 
 Recall: 0.9674 +/- 0.0072
+
 Balanced accuracy: 0.8619 +/- 0.0179
 
 
 
 
 
+
+### Benchmark High Quality vs Near Real Time
+
+| Profile | Parameters | YOLO (ms / fps) | Depth (ms / fps) | Preproc (ms / fps) | TCN (ms / fps) | Totale (ms / fps) |
+|---------|-----------|-----------------|------------------|--------------------|----------------|-------------------|
+| **HQ** | YOLO imgsz=640<br>Depth full-res, Depth every frame,<br>SEQ_LEN=5, IMG_SIZE=224 | 20–25 ms<br>(40–50 fps) | 40–90 ms<br>(10–20 fps) | 30–60 ms<br>(16–33 fps) | 8–15 ms<br>(65–120 fps) | 110–160 ms<br>(6–9 fps) |
+| **NRT** | YOLO imgsz=480<br>Depth downscale=0.5,<br>Depth every 3 frame,<br>SEQ_LEN=5, IMG_SIZE=224 | 12–15 ms<br>(65–80 fps) | 15–25 ms<br>(40–65 fps)<br> | 10–15 ms<br>(65–100 fps) | 6–10 ms<br>(100–160 fps) | 35–45 ms<br>(22–28 fps) |
+
+### Note
+- **Total** = mean value per frame for the entire pipeline.  
+- For **surgical real-time** we need ≤33–40 ms/frame (≥25–30 fps).  
+- HQ more accurate, but slower (≈8 fps).  
+- NRT reduces the depth quality and the calculus frequenzy, but it is quite real-time (≈25 fps) and it is stil suffciently accurate.  
