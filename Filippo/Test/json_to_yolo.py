@@ -14,6 +14,8 @@ random.shuffle(img_files)
 
 k = 1
 for fn in img_files:
+    if 'video' not in fn:
+        continue
     print(f'processing {k}/{len(img_files)}')
     base = os.path.splitext(fn)[0]
     jpth = os.path.join(masks_path, base + ".json")

@@ -5,9 +5,9 @@ import torch
 from ultralytics import YOLO
 
 VIDEO_FOLDER = '../../Dataset/video_dataset/videos/train'
-OUTPUT_FOLDER = './medSAM2_dataset/images/'
+OUTPUT_FOLDER = './medSAM2_dataset/images_2/'
 MODEL_PATH = './runs/segment/train/weights/best.pt'
-MASK_PATH = './medSAM2_dataset/masks/'
+MASK_PATH = './medSAM2_dataset/masks_2/'
 MAX_VIDEO = 100
 
 
@@ -54,9 +54,13 @@ def create_datatset():
     random.shuffle(videos)
     i = 1
     
+    done = os.listdir('./medSAM2_dataset/images/')
+    
     for video in videos:
         if i == MAX_VIDEO:
             break
+        if video in done:
+            continue
         
         full_path = os.path.join(OUTPUT_FOLDER,video.replace('.mp4',''))
         os.mkdir(full_path)

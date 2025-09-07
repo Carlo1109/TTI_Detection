@@ -12,7 +12,7 @@ from sklearn.metrics import accuracy_score
 
 IMG_SIZE    = (256, 256)
 DEVICE      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-CHECKPOINT  = './runs_sampled_dataset/segment/train/weights/best.pt'
+CHECKPOINT  = './runs_7_09/segment/train/weights/best.pt'
 
 LABELS_PATH = '../../Dataset/video_dataset/labels/val/'
 VIDEOS_PATH = '../../Dataset/video_dataset/videos/val/'
@@ -279,10 +279,10 @@ def vis(model,im,depth_model):
                 if not np.any(tool_int) or not np.any(tissue_int):
                     continue
   
-                plt.imshow(tool_int)
-                plt.show()
-                plt.imshow(tissue_int)
-                plt.show()
+                # plt.imshow(tool_int)
+                # plt.show()
+                # plt.imshow(tissue_int)
+                # plt.show()
                 
                 depth_tool_int = depth_map[tool_int.astype(bool)]
                 depth_tissue_int = depth_map[tissue_int.astype(bool)]
@@ -291,8 +291,8 @@ def vis(model,im,depth_model):
                 med_tool = np.mean(depth_tool_int)
                 med_tissue = np.mean(depth_tissue_int)
                 
-                # print(med_tool)
-                # print(med_tissue)
+                print(med_tool)
+                print(med_tissue)
                 
                 if np.isnan(med_tool) or np.isnan(med_tissue):
                     continue
@@ -305,17 +305,17 @@ def vis(model,im,depth_model):
                     pairs.append((tool_mask,tissue_mask))
                     
                     
-    if len(pairs) == 0:
-        print("NO TTI FOUND")
-    for pair in pairs:  
-        plt.imshow(img)
-        to = np.ma.masked_where(pair[0] == 0, pair[0])  
-        ti = np.ma.masked_where(pair[1] == 0, pair[1])  
-        plt.imshow(to,alpha=0.5, cmap='jet')
-        plt.imshow(ti,alpha=0.5,cmap='Greens')
-        plt.title(" TTI ")
-        plt.axis("off")
-        plt.show()
+    # if len(pairs) == 0:
+    #     print("NO TTI FOUND")
+    # for pair in pairs:  
+    #     plt.imshow(img)
+    #     to = np.ma.masked_where(pair[0] == 0, pair[0])  
+    #     ti = np.ma.masked_where(pair[1] == 0, pair[1])  
+    #     plt.imshow(to,alpha=0.5, cmap='jet')
+    #     plt.imshow(ti,alpha=0.5,cmap='Greens')
+    #     plt.title(" TTI ")
+    #     plt.axis("off")
+    #     plt.show()
     return pairs
                 
         

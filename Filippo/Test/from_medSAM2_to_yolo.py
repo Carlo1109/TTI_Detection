@@ -1,8 +1,8 @@
 import os, json, cv2, numpy as np, matplotlib.pyplot as plt, random
 
 
-IMGS_PATH = './medSAM2_dataset/images/'
-MASKS_PATH = './medSAM2_dataset/binary_masks_msam/'
+IMGS_PATH = './medSAM2_dataset/images_2/'
+MASKS_PATH = './medSAM2_dataset/output/'
 # OUT_IMAGE = './step_1_seg_train/images/train/'
 # OUT_LABELS = './step_1_seg_train/labels/train/'
 OUT_IMAGE = './step_1_seg_train/test_img/'
