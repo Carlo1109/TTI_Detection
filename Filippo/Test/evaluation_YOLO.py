@@ -12,7 +12,7 @@ from sklearn.metrics import accuracy_score
 
 IMG_SIZE    = (256, 256)
 DEVICE      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-CHECKPOINT  = './runs_7_09/segment/train/weights/best.pt'
+CHECKPOINT  = './runs_8_09/segment/train/weights/best.pt'
 
 LABELS_PATH = '../../Dataset/video_dataset/labels/val/'
 VIDEOS_PATH = '../../Dataset/video_dataset/videos/val/'
@@ -201,8 +201,8 @@ def vis(model,im,depth_model):
     
     ann = preds[0].plot() 
     ann_rgb = cv2.cvtColor(ann, cv2.COLOR_BGR2RGB) 
-    plt.imshow(ann_rgb)
-    plt.show()
+    # plt.imshow(ann_rgb)
+    # plt.show()
     
     img = cv2.imread(im)
     img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
@@ -253,10 +253,10 @@ def vis(model,im,depth_model):
             intersection_mask = np.logical_and(expand_mask(tool_mask,10),expand_mask(tissue_mask,10))
             inter_numb = intersection_mask.sum()
             
-            plt.imshow(img)
-            plt.imshow(np.ma.masked_where(expand_mask(tool_mask,10) == 0,expand_mask(tool_mask,10)),alpha=0.7)
-            plt.imshow(np.ma.masked_where(expand_mask(tissue_mask,10) == 0,expand_mask(tissue_mask,10)),alpha=0.7)
-            plt.show()
+            # plt.imshow(img)
+            # plt.imshow(np.ma.masked_where(expand_mask(tool_mask,10) == 0,expand_mask(tool_mask,10)),alpha=0.7)
+            # plt.imshow(np.ma.masked_where(expand_mask(tissue_mask,10) == 0,expand_mask(tissue_mask,10)),alpha=0.7)
+            # plt.show()
             
             if inter_numb > 5:
                 # plt.imshow(img)
@@ -266,12 +266,12 @@ def vis(model,im,depth_model):
                 
                 intersection_mask = expand_mask(intersection_mask,20)
                 
-                plt.imshow(img)
-                plt.imshow(np.ma.masked_where(intersection_mask == 0, intersection_mask),alpha=0.8)
-                plt.show()
+                # plt.imshow(img)
+                # plt.imshow(np.ma.masked_where(intersection_mask == 0, intersection_mask),alpha=0.8)
+                # plt.show()
                 
-                plt.imshow(depth_map)
-                plt.show()
+                # plt.imshow(depth_map)
+                # plt.show()
                 
                 tool_int = np.logical_and(intersection_mask.astype(bool),tool_mask.astype(bool))
                 tissue_int = np.logical_and(intersection_mask.astype(bool),tissue_mask.astype(bool))
@@ -291,14 +291,14 @@ def vis(model,im,depth_model):
                 med_tool = np.mean(depth_tool_int)
                 med_tissue = np.mean(depth_tissue_int)
                 
-                print(med_tool)
-                print(med_tissue)
+                # print(med_tool)
+                # print(med_tissue)
                 
                 if np.isnan(med_tool) or np.isnan(med_tissue):
                     continue
 
                 
-                tolerance = 0.1
+                tolerance = 0.25
     
                 
                 if np.abs(med_tool - med_tissue) <= tolerance:
@@ -382,10 +382,16 @@ def evaluate():
             n_good_predictions+=1
             continue
         
-        # if n_tti != len(pairs):
-        #     y_true.append(1)
-        #     y_pred.append(0)
-        #     n_diff_length += 1
+        if n_tti != len(pairs):
+            y_true.append(1)
+            y_pred.append(0)
+            # print("N_TTI: ",n_tti)
+            # print("PREDICTED TTI: ",len(pairs))
+            n_diff_length += 1
+        else:
+            y_true.append(1)
+            y_pred.append(0)
+            n_good_predictions+=1
         
         for tool_mask , tissue_mask in pairs:
             tool_int = np.logical_and(tool_mask,msk).sum()
