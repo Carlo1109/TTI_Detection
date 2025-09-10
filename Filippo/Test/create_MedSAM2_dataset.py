@@ -1,14 +1,16 @@
 import cv2
 import os
 import random
+import numpy as np
 import torch
 from ultralytics import YOLO
 
 VIDEO_FOLDER = '../../Dataset/video_dataset/videos/train'
-OUTPUT_FOLDER = './medSAM2_dataset/images_2/'
+OUTPUT_FOLDER = './medSAM2_dataset/images/'
 MODEL_PATH = './runs/segment/train/weights/best.pt'
-MASK_PATH = './medSAM2_dataset/masks_2/'
-MAX_VIDEO = 100
+MODEL_PATH_TOOLS = './runs_fine_tuned/segment/train/weights/best.pt'
+MASK_PATH = './medSAM2_dataset/masks/'
+MAX_VIDEO = 400
 
 
 def _load_video(video_path):
@@ -18,22 +20,28 @@ def _load_video(video_path):
     return cap, frame_count
 
 
-def save_mask(model,img,output_dir):
+def save_mask(model,model_tool,img,output_dir):
     img_path = img
     res = model.predict(img_path,verbose=False)
-    if res is None or len(res) == 0:
-        return
+    
+    res_tool = model_tool.predict(img_path,verbose=False)
+    
+    first_net_empty = False
+    if res is None or len(res_tool) == 0:
+        first_net_empty = True
     
     for result in res:
         # get array results
         if result.masks is None:
-            return
+            first_net_empty = True
+            break
         masks = result.masks.data
         boxes = result.boxes.data
         # extract classes
         clss = boxes[:, 5]
         out_mask = torch.zeros_like(masks[0], dtype=torch.uint8)
         
+        next_class = 0
         for i in range(masks.shape[0]):
             if clss[i] == 1:
                 mask_i = masks[i] > 0  
@@ -41,8 +49,35 @@ def save_mask(model,img,output_dir):
             else:
                 mask_i = masks[i] > 0  
                 out_mask[mask_i] = i + 2
+                next_class = i + 2
     
-        cv2.imwrite(f'{output_dir}/prompt_mask.png', out_mask.cpu().numpy())   
+    
+    
+    result_tool = res_tool[0]
+    if result_tool is None or len(result_tool) == 0:
+        if first_net_empty:
+            return
+        cv2.imwrite(f'{output_dir}/prompt_mask.png', out_mask.cpu().numpy())
+        return
+    masks_tool = result_tool.masks.data
+    boxes_tool = result_tool.boxes.data
+    if first_net_empty:
+        out_mask = torch.zeros_like(masks_tool[0], dtype=torch.uint8)
+        next_class = 2
+    clss_tool = boxes_tool[:, 5]
+
+    for i in range(masks_tool.shape[0]):
+        if clss_tool[i] == 1:
+            mask_i = masks_tool[i] > 0  
+            out_mask[mask_i] = 1
+        else:
+            mask_i = masks_tool[i] > 0          
+            if not torch.all(out_mask[mask_i] != 0):
+                out_mask[mask_i] = i + next_class
+    
+    
+    
+    cv2.imwrite(f'{output_dir}/prompt_mask.png', out_mask.cpu().numpy())   
 
 
 
@@ -50,11 +85,14 @@ def save_mask(model,img,output_dir):
 
 def create_datatset():
     model = YOLO(MODEL_PATH)
+    model_tool = YOLO(MODEL_PATH_TOOLS)
     videos = os.listdir(VIDEO_FOLDER)
     random.shuffle(videos)
+    
     i = 1
     
-    done = os.listdir('./medSAM2_dataset/images/')
+    # done = os.listdir('./medSAM2_dataset/images/')
+    done = []
     
     for video in videos:
         if i == MAX_VIDEO:
@@ -83,7 +121,8 @@ def create_datatset():
         
         i+=1
         
-        save_mask(model,os.path.join(full_path,'frame000.jpg'),mask_path + '/')
+        save_mask(model,model_tool,os.path.join(full_path,'frame000.jpg'),mask_path + '/')
+        
         
        
 

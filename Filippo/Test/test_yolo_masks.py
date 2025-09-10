@@ -5,8 +5,8 @@ import cv2
 import random
 import torch
 
-MODEL_PATH_ORIGINAL = './runs/segment/train/weights/best.pt'
-MODEL_PATH = './runs_sampled_dataset/segment/train/weights/best.pt'
+MODEL_PATH_ORIGINAL = './runs_fine_tuned/segment/train/weights/best.pt'
+MODEL_PATH = './runs/segment/train/weights/best.pt'
 IMAGES_PATH = '../Full Dataset/val/'
 
 

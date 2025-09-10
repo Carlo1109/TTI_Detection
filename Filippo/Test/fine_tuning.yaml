@@ -1,0 +1,8 @@
+train:  /kaggle/input/fine-tuning-dataset/fine_tuning_ds/fine_tuning_dataset/images/train   # path to training images
+val:  /kaggle/input/fine-tuning-dataset/fine_tuning_ds/fine_tuning_dataset/images/val   # path to training images
+names:
+  0: tissue
+  1: tool
+
+
+
