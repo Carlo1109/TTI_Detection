@@ -12,7 +12,7 @@ from sklearn.metrics import accuracy_score
 
 IMG_SIZE    = (256, 256)
 DEVICE      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-CHECKPOINT  = './runs_8_09/segment/train/weights/best.pt'
+CHECKPOINT  = './runs_medSAM+fine_tuning/segment/train/weights/best.pt'
 
 LABELS_PATH = '../../Dataset/video_dataset/labels/val/'
 VIDEOS_PATH = '../../Dataset/video_dataset/videos/val/'
@@ -298,7 +298,7 @@ def vis(model,im,depth_model):
                     continue
 
                 
-                tolerance = 0.25
+                tolerance = 0.1
     
                 
                 if np.abs(med_tool - med_tissue) <= tolerance:
@@ -390,7 +390,7 @@ def evaluate():
             n_diff_length += 1
         else:
             y_true.append(1)
-            y_pred.append(0)
+            y_pred.append(1)
             n_good_predictions+=1
         
         for tool_mask , tissue_mask in pairs:
