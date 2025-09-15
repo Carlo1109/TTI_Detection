@@ -201,11 +201,16 @@ def vis(model,im,depth_model):
     
     ann = preds[0].plot() 
     ann_rgb = cv2.cvtColor(ann, cv2.COLOR_BGR2RGB) 
-    # plt.imshow(ann_rgb)
-    # plt.show()
+    plt.imshow(ann_rgb)
+    plt.show()
+    
+    
     
     img = cv2.imread(im)
     img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
+    
+    plt.imshow(img)
+    plt.show() 
     
     tool_list = []
     tissue_list = []
@@ -270,8 +275,8 @@ def vis(model,im,depth_model):
                 # plt.imshow(np.ma.masked_where(intersection_mask == 0, intersection_mask),alpha=0.8)
                 # plt.show()
                 
-                # plt.imshow(depth_map)
-                # plt.show()
+                plt.imshow(depth_map)
+                plt.show()
                 
                 tool_int = np.logical_and(intersection_mask.astype(bool),tool_mask.astype(bool))
                 tissue_int = np.logical_and(intersection_mask.astype(bool),tissue_mask.astype(bool))
@@ -307,15 +312,15 @@ def vis(model,im,depth_model):
                     
     # if len(pairs) == 0:
     #     print("NO TTI FOUND")
-    # for pair in pairs:  
-    #     plt.imshow(img)
-    #     to = np.ma.masked_where(pair[0] == 0, pair[0])  
-    #     ti = np.ma.masked_where(pair[1] == 0, pair[1])  
-    #     plt.imshow(to,alpha=0.5, cmap='jet')
-    #     plt.imshow(ti,alpha=0.5,cmap='Greens')
-    #     plt.title(" TTI ")
-    #     plt.axis("off")
-    #     plt.show()
+    for pair in pairs:  
+        plt.imshow(img)
+        to = np.ma.masked_where(pair[0] == 0, pair[0])  
+        ti = np.ma.masked_where(pair[1] == 0, pair[1])  
+        plt.imshow(to,alpha=0.5, cmap='jet')
+        plt.imshow(ti,alpha=0.5,cmap='Greens')
+        plt.title(" TTI ")
+        plt.axis("off")
+        plt.show()
     return pairs
                 
         
