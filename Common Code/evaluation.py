@@ -273,11 +273,11 @@ if __name__ == "__main__":
     
     print("Accuracy: ", accuracy_score(y_true, y_pred))
     print("f1 MACRO: ", f1_score(y_true, y_pred,average='macro'))
-    print("f1 WEIGHTED: ", f1_score(y_true, y_pred , average='weighted'))
+    # print("f1 WEIGHTED: ", f1_score(y_true, y_pred , average='weighted'))
     print("precision: ", precision_score(y_true, y_pred))
     print("recall: ", recall_score(y_true, y_pred))
     print("confusion matric: ", confusion_matrix(y_true, y_pred))
-    print("Balanced accuracy: ", balanced_accuracy_score(y_true, y_pred))
+    # print("Balanced accuracy: ", balanced_accuracy_score(y_true, y_pred))
 
     # create_test()
 

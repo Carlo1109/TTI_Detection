@@ -16,4 +16,9 @@ The goal is to enhance computer-assisted surgical systems by accurately analyzin
  previous information also the type of interaction (retract, dissect, etc...)  
 
 ## Organization
+This repository is organised as follows:
+
+in the **Common Code** folder there is the code to train, evaluate and run the inference of the fully-supervised frame-by-frame pipeline.
+In the **Carlo** folder there is the code to evaluate and run in real time the supervised multi-frame model.
+In the **Filippo/Test** there is the code to create the weakly supervised dataset and the one to train, run and evaluate the respective pipeline
 

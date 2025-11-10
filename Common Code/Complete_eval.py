@@ -46,8 +46,8 @@ def generate_predictions(yolo_model,depth_model,tti_classifier):
                 
             
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        _ , tti_predictions  = end_to_end_pipeline(IMAGES_TEST + img,yolo_model,depth_model,tti_classifier,device)
-        # _ , tti_predictions  = depth_treshold(IMAGES_TEST + img,yolo_model,depth_model)
+        # _ , tti_predictions  = end_to_end_pipeline(IMAGES_TEST + img,yolo_model,depth_model,tti_classifier,device)
+        _ , tti_predictions  = depth_treshold(IMAGES_TEST + img,yolo_model,depth_model)
         
 
         if len(tti_predictions) == 0 and len(d) != 0:
@@ -109,7 +109,7 @@ if __name__ == "__main__":
     # y_true , y_pred = data
     zeros = 0
     ones = 0
-    for i in y_pred:
+    for i in y_true:
         if i == 0:
             zeros += 1
         else:
@@ -120,6 +120,12 @@ if __name__ == "__main__":
     print("Zeros: ", zeros)
     
     print("Accuracy: ", accuracy_score(y_true, y_pred))
+    print("f1 MACRO: ", f1_score(y_true, y_pred,average='macro'))
+    # print("f1 WEIGHTED: ", f1_score(y_true, y_pred , average='weighted'))
+    print("precision: ", precision_score(y_true, y_pred))
+    print("recall: ", recall_score(y_true, y_pred))
+    print("confusion matric: ", confusion_matrix(y_true, y_pred))
+    # print("Balanced accuracy: ", balanced_accuracy_score(y_true, y_pred))
 
 
 
