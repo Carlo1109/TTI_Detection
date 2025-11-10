@@ -9,13 +9,11 @@ The goal is to enhance computer-assisted surgical systems by accurately analyzin
 
 ##  Objectives
 
-- **Detection** – Identify when a surgical tool interacts with tissue in endoscopic video frames.  
-- **Isolation** – Segment and localize the specific region of interaction.  
-- **Identification** – Classify the type of interaction (e.g., grasping, dissecting, retracting).  
+- **Detection** – Detection of a TTI event type with mask, confidence and bounding box  
+- **Isolation** – Matching the tool and the tissue that are interacting without the
+ indication of the type of interaction  
+- **Identification** – Adding to the
+ previous information also the type of interaction (retract, dissect, etc...)  
 
-These steps form a multi-stage pipeline contributing to the next generation of **minimally invasive surgery (MIS)** support systems.
-
----
-
-##  Project Structure
+## Organization
 
