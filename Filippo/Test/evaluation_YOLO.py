@@ -209,8 +209,8 @@ def vis(model,im,depth_model):
     img = cv2.imread(im)
     img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
     
-    plt.imshow(img)
-    plt.show() 
+    # plt.imshow(img)
+    # plt.show() 
     
     tool_list = []
     tissue_list = []
@@ -275,8 +275,8 @@ def vis(model,im,depth_model):
                 # plt.imshow(np.ma.masked_where(intersection_mask == 0, intersection_mask),alpha=0.8)
                 # plt.show()
                 
-                plt.imshow(depth_map)
-                plt.show()
+                # plt.imshow(depth_map)
+                # plt.show()
                 
                 tool_int = np.logical_and(intersection_mask.astype(bool),tool_mask.astype(bool))
                 tissue_int = np.logical_and(intersection_mask.astype(bool),tissue_mask.astype(bool))
@@ -307,7 +307,7 @@ def vis(model,im,depth_model):
     
                 
                 if np.abs(med_tool - med_tissue) <= tolerance:
-                    pairs.append((tool_mask,tissue_mask))
+                    pairs.append((tool,tissue_mask))
                     
                     
     # if len(pairs) == 0:
@@ -321,6 +321,10 @@ def vis(model,im,depth_model):
         plt.title(" TTI ")
         plt.axis("off")
         plt.show()
+        
+        
+    plt.imshow(img)
+    plt.show() 
     return pairs
                 
         
