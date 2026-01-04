@@ -3,9 +3,10 @@ import cv2
 from transformers import pipeline
 from Model import ROIClassifier
 from pipeline import *
+from pipeline_with_depth_treshold import *
 from PIL import  Image
 import time
-
+import matplotlib.pyplot as plt
 
 def to_tti_name(name):
     if name == None:
@@ -93,12 +94,19 @@ def real(video, yolo_model, depth, tti_classifier, device):
         
         if overlay_mask is not None:
             # cv2.imshow("video", overlay_mask)
+            # plt.imshow(cv2.cvtColor(overlay_mask,cv2.COLOR_BGR2RGB))
+            # plt.show()
+            # plt.imshow(cv2.cvtColor(image,cv2.COLOR_BGR2RGB))
+            # plt.show()
             out.write(overlay_mask)
         else:
+            # plt.imshow(image)
+            # plt.show()
             # cv2.imshow("video", image)
             out.write(image)
+            
 
-        cv2.waitKey(1)
+        # cv2.waitKey(1)
       
         success, image = vidcap.read()
         if image is None:
@@ -113,8 +121,8 @@ def real(video, yolo_model, depth, tti_classifier, device):
 
 
 if __name__ == "__main__":
-    model = load_yolo_model('./runs_YOLOn_200/segment/train/weights/best.pt')
-    video = './Dataset/video_dataset/videos/test/Adnanset-Lc 121-004.mp4'
+    model = load_yolo_model('./runs_OLD_DATASET/segment/train/weights/best.pt')
+    video = '../Dataset/video_dataset/videos/test/Adnanset-Lc 78-001.mp4'
 
     pipe = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
    

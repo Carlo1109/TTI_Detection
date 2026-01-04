@@ -133,7 +133,6 @@ def find_tool_tissue_pairs(detections: list[dict]):
 def extract_union_roi(image, tool_mask, tissue_mask, depth_map=None):
     combined_mask = (tool_mask + tissue_mask).clip(0, 1).astype('uint8') #before astype
     x, y, w, h = cv2.boundingRect(combined_mask)
-
     roi = image[y:y+h, x:x+w]
   
 
@@ -232,16 +231,16 @@ def show_mask_overlay_from_binary_mask(image_bgr, binary_mask, alpha=0.5, mask_c
     indices = binary_mask.astype(bool)
     overlay[indices] = (1 - alpha) * image_rgb[indices] + alpha * colored_mask[indices]
 
-    return cv2.cvtColor((overlay * 255).astype(np.uint8), cv2.COLOR_RGB2BGR)
     # plt.figure(figsize=(8, 8))
     # plt.imshow(overlay)
     # plt.axis('off')
     # plt.show()
+    return cv2.cvtColor((overlay * 255).astype(np.uint8), cv2.COLOR_RGB2BGR)
 
 
 if __name__ == "__main__":
-    model = load_yolo_model('./runs/segment/train/weights/best.pt')
-    image = './Dataset/dataset/images/train/video0001_frame0000.png'
+    model = load_yolo_model('./runs_OLD_DATASET/segment/train/weights/best.pt')
+    image = '../Dataset/evaluation/images/video0208_frame0149.png'
     
     pipe = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
 
@@ -254,13 +253,9 @@ if __name__ == "__main__":
     detection , tti_predictions  = end_to_end_pipeline(image,model,pipe,tti_class,device)
     
     
-    
-    
-    
-    
     print()
 
-    print(tti_predictions)
+    # print(tti_predictions)
     
     image_full = cv2.imread(image, cv2.IMREAD_COLOR)
 
@@ -271,9 +266,9 @@ if __name__ == "__main__":
         tool_mask_full   = tti_predictions[i]['tool']['mask']    
         tissue_mask_full = tti_predictions[i]['tissue']['mask'] 
 
-        print("TOOL: " , tti_predictions[i]['tool']['class'])
-        print("TISSUE: " , tti_predictions[i]['tissue']['class'])
-        print("TTI: " , tti_predictions[i]['tti_class'])
+        # print("TOOL: " , tti_predictions[i]['tool']['class'])
+        # print("TISSUE: " , tti_predictions[i]['tissue']['class'])
+        # print("TTI: " , tti_predictions[i]['tti_class'])
 
         tool_mask_resized = cv2.resize(
             tool_mask_full.astype(np.uint8),

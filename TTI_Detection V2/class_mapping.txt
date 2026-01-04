@@ -1,0 +1,25 @@
+MAPPA DELLE CLASSI (Originale -> Nuova)
+==========================================================================================
+Classe Orig.    Nome Originale                      Classe Nuova    Azione              
+------------------------------------------------------------------------------------------
+0               unknown_tool                        ---             RIMOSSA             
+1               dissector                           0               Rinumerata          
+2               scissors                            1               Rinumerata          
+3               suction                             2               Rinumerata          
+4               grasper 3                           4               Mantenuta           
+5               harmonic                            3               Rinumerata          
+6               grasper                             4               Rinumerata          
+7               bipolar                             5               Rinumerata          
+8               grasper 2                           4               Rinumerata          
+9               cautery (hook, spatula)             6               Rinumerata          
+10              ligasure                            ---             RIMOSSA             
+11              stapler                             7               Rinumerata          
+12              unknown_tti                         ---             RIMOSSA             
+13              coagulation                         8               Rinumerata          
+14              other                               9               Rinumerata          
+15              retract and grab                    10              Rinumerata          
+16              blunt dissection                    11              Rinumerata          
+17              energy - sharp dissection           12              Rinumerata          
+18              staple                              13              Rinumerata          
+19              retract and push                    10              Rinumerata          
+20              cut - sharp dissection              14              Rinumerata          
