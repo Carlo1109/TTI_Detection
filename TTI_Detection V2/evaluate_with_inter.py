@@ -384,9 +384,23 @@ def test_with_intersection():
                 # Compare each GT pair
                 for key, gt_val in gt_pairs.items():
                     total_pairs += 1
-                    pred_val = pred_pairs.get(key, 0)  # Default to 0 if not predicted
+                    if key in pred_pairs:
+                        # Coppia con classi esatte trovata - confronta il valore TTI
+                        pred_val = pred_pairs[key]
+                    else:
+                        # Coppia con queste classi non predetta - errore nelle classi
+                        pred_val = 0  # Default a 0 (no interaction)
+                    
                     y_true.append(gt_val)
                     y_pred.append(pred_val)
+                
+                # Conta anche falsi positivi: predizioni senza corrispondente GT
+                for key, pred_val in pred_pairs.items():
+                    if key not in gt_pairs:
+                        # Coppia predetta ma non in GT - falso positivo
+                        total_pairs += 1
+                        y_true.append(0)  # GT dice: no interaction
+                        y_pred.append(pred_val)  # Pred dice: yes/no interaction
 
             except Exception as e:
                 print(f"    [WARN] Video {vi} Frame {idx} error: {e}")

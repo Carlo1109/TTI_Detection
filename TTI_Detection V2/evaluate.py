@@ -307,6 +307,7 @@ def test_end_to_end():
 
             pred_pos_keys_this_frame = set()
 
+            found_pairs = []
             for pair in pairs:
                 tool_mask   = pair['tool']['mask']
                 tissue_mask = pair['tissue']['mask']
@@ -323,6 +324,7 @@ def test_end_to_end():
                 tool_id = pair['tool'].get('tool_id', 0)
                 tti_id  = pair['tissue'].get('tti_id', 12)
                 key = (tool_id, tti_id)
+                found_pairs.append(key)
 
                 gt_tools_in_frame = {k[0] for k in gt_pairs.keys()}
                 if tool_id not in gt_tools_in_frame:
@@ -335,7 +337,13 @@ def test_end_to_end():
                     y_pred.append(int(pred))
                     if pred == 1:
                         pred_pos_keys_this_frame.add(key)
-
+               
+            for gt_pair in gt_pairs:
+                if gt_pair not in found_pairs:
+                    y_pred.append(0)
+                    y_true.append(1)
+                
+                
             for k, v in gt_pairs.items():
                 if v == 1 and k not in pred_pos_keys_this_frame:
                     missed_pos += 1
