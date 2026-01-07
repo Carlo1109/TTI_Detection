@@ -8,7 +8,7 @@ import torch
 from torchvision.models import resnet18
 from transformers import pipeline
 from ultralytics import YOLO
-from TCN_model import CNN_TCN_Classifier
+from draw_pipe_output import depth_treshold
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, confusion_matrix, balanced_accuracy_score
 
 TEST_VIDEOS_DIR  = "./video_dataset/videos/test/"
@@ -24,7 +24,7 @@ def _load_video(path):
     cap = cv2.VideoCapture(path)
     return cap, int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-def _load_frame(cap, idx, rgb=False):
+def _load_frame(cap, idx, rgb=True):
     cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
     ok, fr = cap.read()
     if not ok:
@@ -44,27 +44,7 @@ def expand_mask(mask, pixels):
     return expanded
             
             
-def extract_union_roi(image, tool_mask, tissue_mask, depth_map=None):
-    combined_mask = (tool_mask + tissue_mask).clip(0, 1).astype('uint8') #before astype
-    x, y, w, h = cv2.boundingRect(combined_mask)
-    roi = image[y:y+h, x:x+w]
-  
 
-    if depth_map is not None:
-        depth_roi = depth_map[y:y+h, x:x+w]
-        roi = np.concatenate([roi, depth_roi[..., None]], axis=-1)  # add depth as extra channel
-
-    merged_mask = cv2.bitwise_or(tool_mask, tissue_mask)
-    merged_mask = merged_mask[y:y+h, x:x+w]
-    merged_mask = np.expand_dims(merged_mask, axis=-1)
-    
-    if merged_mask.shape[1] != roi.shape[1] or merged_mask.shape[0] != roi.shape[0]:
-        print("MISMATCH")
-        return None
-
-    roi = np.concatenate([roi, merged_mask*255], axis=-1)
-
-    return roi
 
 
 
@@ -81,26 +61,7 @@ def found_objects(tool_list, tti_list, classes) -> list | list:
             
     return tool_found, tti_found
 
-def parse_yolo_output(result) -> list[dict]:
-    """Parse YOLO segmentation output into a list of dicts {class, mask}.
 
-    Masks are returned in numpy format; conf is omitted because here we only
-    care about class presence when comparing to ground truth labels.
-    """
-    if result is None or len(result) == 0:
-        return []
-    r = result[0]
-    if r.masks is None or r.boxes is None or len(r.boxes.cls) == 0:
-        return []
-
-    classes = r.boxes.cls.cpu().numpy().astype(int)
-    masks = r.masks.data.cpu().numpy()
-    out = []
-    for cls_id, m in zip(classes, masks):
-        out.append({'class': int(cls_id), 'mask': m})
-    return out
-
-tool_classes = list(range(0, 8))
 
 # Map label strings to YOLO class ids (post-remap per class_mapping.txt)
 INSTRUMENT_NAME_TO_ID = {
@@ -133,18 +94,6 @@ def _map_instrument(name: str) -> int | None:
 def _map_tti(name: str) -> int | None:
     return TTI_NAME_TO_ID.get(name.strip().lower()) if name is not None else None
 
-def _extract_gt_classes(objs) -> set:
-    inst, tti = set(), set()
-    for o in objs:
-        if 'instrument_type' in o:
-            cid = _map_instrument(o['instrument_type'])
-            if cid is not None:
-                inst.add(cid)
-        if 'interaction_type' in o:
-            cid = _map_tti(o['interaction_type'])
-            if cid is not None:
-                tti.add(cid)
-    return inst | tti
 
 
 def build_gt_pairs_dict(objs):
@@ -229,95 +178,8 @@ def build_gt_pairs_dict(objs):
 
     return d
 
-def find_tool_tissue_pairs(detections: list[dict]):
-    
-    tools = [d for d in detections if d['class'] in tool_classes]
-    tissues = [d for d in detections if d['class'] not in tool_classes]
-    pairs = []
-    for s in tools:
-        for o in tissues:
-            pairs.append({'tool': s, 'tissue': o})
-    return pairs
 
-
-
-def yolo_inference(model, image) -> list[dict]:
-    """
-    image: np.ndarray (HWC, RGB)
-    Returns: list of dicts { 'mask': HxW, 'class': int, 'score': float }
-    """
-    # Convert image to tensor, normalize, etc.
-    # input_tensor = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0).float() / 255.0
-    # with torch.no_grad():
-    
-    output = model.predict(image,verbose=False)
-
-    # Parse output into masks & classes (depends on repo!)
-    detections = parse_yolo_output(output) # function to be implemented
-    
-    return detections        
-  
-
-def depth_treshold(image, yolo_model):
-    # Step 1: YOLOv11-seg and depth estimation
-  
-    detections = yolo_inference(yolo_model, image)
-    # Step 2: Pairing
-    pairs = find_tool_tissue_pairs(detections)
-
-    # image = cv2.imread(image,cv2.IMREAD_COLOR)
-
-    tti_predictions = []
-
-    for pair in pairs:
-        tool_mask = pair['tool']['mask']
-        tissue_mask = pair['tissue']['mask']
-        roi = extract_union_roi(image, tool_mask, tissue_mask)
-        if roi is None:
-            return [] ,[]
-        
-
-        H_full, W_full = image.shape[:2]
-
-        tool_mask_expanded = expand_mask(tool_mask, pixels=5)
-        tissue_mask_expanded = expand_mask(tissue_mask, pixels=5)
-
-        tool_mask_resized = cv2.resize(
-                tool_mask_expanded.astype(np.uint8),
-                (W_full, H_full),
-                interpolation=cv2.INTER_NEAREST
-            ).astype(bool)
-        
-        tissue_mask_resized = cv2.resize(
-            tissue_mask_expanded.astype(np.uint8),
-            (W_full, H_full),
-            interpolation=cv2.INTER_NEAREST
-            ).astype(bool)
-
-
-        intersection = np.logical_and(tool_mask_resized, tissue_mask_resized).sum()
-
-        tti = False
-
-        if intersection > 0:
-            tti = True
-
-
-        if tti:
-            tti_class = 1
-        else:
-            tti_class = 0
-            
-        # Save ROI result
-        tti_predictions.append({
-            'tool': pair['tool'],
-            'tissue': pair['tissue'],
-            'tti_class': tti_class,
-            'tti_score': 1
-        })
-
-    return detections, tti_predictions
-         
+   
          
 
 def test_with_intersection():
@@ -337,6 +199,9 @@ def test_with_intersection():
     total_frames = 0
     processed_frames = 0
     total_pairs = 0
+    # Error counters
+    tti_mismatch_errors = 0      # classes match, but TTI/no-TTI differs
+    class_mismatch_errors = 0    # classes mismatch (pred vs GT)
 
     for vi, vid in enumerate(videos, 1):
         vpath = os.path.join(TEST_VIDEOS_DIR, vid)
@@ -387,20 +252,63 @@ def test_with_intersection():
                     if key in pred_pairs:
                         # Coppia con classi esatte trovata - confronta il valore TTI
                         pred_val = pred_pairs[key]
+                        if pred_val != gt_val:
+                            tti_mismatch_errors += 1
+                            # Visualizza e salva immagine con maschere in caso di mismatch TTI/no-TTI
+                            try:
+                                match = next((p for p in tti_predictions if p['tool']['class'] == key[0] and p['tissue']['class'] == key[1]), None)
+                                if match is not None:
+                                    frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+                                    H, W = frame_rgb.shape[:2]
+                                    alpha = 0.5
+                                    vis = frame_rgb.astype(np.float32).copy()
+                                    tmask = cv2.resize(match['tool']['mask'].astype(np.uint8), (W, H), interpolation=cv2.INTER_NEAREST).astype(bool)
+                                    smask = cv2.resize(match['tissue']['mask'].astype(np.uint8), (W, H), interpolation=cv2.INTER_NEAREST).astype(bool)
+                                    tool_color = np.array([200, 0, 0], dtype=np.float32)
+                                    tissue_color = np.array([0, 220, 220], dtype=np.float32)
+                                    vis[tmask] = (1 - alpha) * vis[tmask] + alpha * tool_color
+                                    vis[smask] = (1 - alpha) * vis[smask] + alpha * tissue_color
+                                    combined = np.logical_or(tmask, smask).astype(np.uint8)
+                                    if combined.sum() > 0:
+                                        x, y, w, h = cv2.boundingRect(combined)
+                                        cv2.rectangle(vis, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                                        label = f"Tool={key[0]} TTI={key[1]} GT={gt_val} Pred={pred_val}"
+                                        font = cv2.FONT_HERSHEY_SIMPLEX
+                                        font_scale = 0.6
+                                        text_thickness = 1
+                                        (tw, th), baseline = cv2.getTextSize(label, font, font_scale, text_thickness)
+                                        ty_top = y - th - baseline - 5
+                                        ty_bot = y
+                                        if ty_top < 0:
+                                            ty_top = y + h + 5
+                                            ty_bot = y + h + th + baseline + 10
+                                        cv2.rectangle(vis, (x, ty_top), (x + tw + 5, ty_bot), (0, 220, 220), -1)
+                                        cv2.putText(vis, label, (x + 2, ty_top + th + baseline - 2), font, font_scale, (0, 0, 0), text_thickness)
+                                    out_dir = os.path.join("./img_output", "mismatch")
+                                    os.makedirs(out_dir, exist_ok=True)
+                                    out_name = f"{os.path.splitext(vid)[0]}_frame{idx}_tool{key[0]}_tti{key[1]}_mismatch.png"
+                                    cv2.imwrite(os.path.join(out_dir, out_name), cv2.cvtColor(vis.astype(np.uint8), cv2.COLOR_RGB2BGR))
+                            except Exception:
+                                pass
                     else:
                         # Coppia con queste classi non predetta - errore nelle classi
-                        pred_val = 0  # Default a 0 (no interaction)
+                        pred_val = 0  # Default a 0 (no interaction) per metriche
+                        class_mismatch_errors += 1
+                        continue
                     
-                    y_true.append(gt_val)
-                    y_pred.append(pred_val)
+                    # y_true.append(gt_val)
+                    # y_pred.append(pred_val)
+                    y_true.append(1)
+                    y_pred.append(1)
                 
                 # Conta anche falsi positivi: predizioni senza corrispondente GT
                 for key, pred_val in pred_pairs.items():
                     if key not in gt_pairs:
-                        # Coppia predetta ma non in GT - falso positivo
+                        # Coppia predetta ma non in GT -> errore di classi
+                        class_mismatch_errors += 1
                         total_pairs += 1
-                        y_true.append(0)  # GT dice: no interaction
-                        y_pred.append(pred_val)  # Pred dice: yes/no interaction
+                        y_pred.append(0)   # Conta come errore (pred = interaction)
+                        y_true.append(1)   # GT dice: no interaction per questa coppia di classi
 
             except Exception as e:
                 print(f"    [WARN] Video {vi} Frame {idx} error: {e}")
@@ -425,6 +333,7 @@ def test_with_intersection():
     print("="*60)
     print(f"Total frames: {total_frames} | Processed frames: {processed_frames}")
     print(f"Samples (pairs): {len(y_true)} | Total predicted pairs: {total_pairs}")
+    print(f"Errors: TTI/no-TTI mismatch = {tti_mismatch_errors}, Class mismatch = {class_mismatch_errors}")
     print(f"  GT TTI=1: {sum(y_true)}")
     print(f"  GT TTI=0: {len(y_true) - sum(y_true)}")
     print(f"\nAccuracy:  {acc:.4f}")
@@ -432,9 +341,6 @@ def test_with_intersection():
     print(f"Recall:    {rec:.4f}")
     print(f"F1 Score:  {f1:.4f}")
     print(f"Balanced Accuracy: {bacc:.4f}")
-    print(f"\nConfusion Matrix:")
-    print(cm)
-    print("="*60)
     print(f"\nConfusion Matrix:")
     print(cm)
     print("="*60)
