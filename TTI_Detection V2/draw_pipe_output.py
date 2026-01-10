@@ -44,24 +44,84 @@ def expand_mask(mask, pixels):
     expanded = cv2.dilate(mask.astype(np.uint8), kernel, iterations=1)
     return expanded
 
+def found_objects(tool_list, tti_list, classes) -> list | list:
+    
+    tool_found = []
+    tti_found = []
+    
+    for elem in range(len(classes)):
+        if classes[elem] in tool_list:
+            tool_found.append(elem)
+        if classes[elem] in tti_list:
+            tti_found.append(elem)
+            
+    return tool_found, tti_found
+
 def parse_yolo_output(result) -> list[dict]:
-    """Parse YOLO segmentation output into a list of dicts {class, mask}.
-
-    Masks are returned in numpy format; conf is omitted because here we only
-    care about class presence when comparing to ground truth labels.
-    """
-    if result is None or len(result) == 0:
-        return []
+    
     r = result[0]
-    if r.masks is None or r.boxes is None or len(r.boxes.cls) == 0:
+    if len(result[0].boxes.cls) == 0:
         return []
+    if len(result[0].boxes.cls) < 2 :
+        return [{'class':int(r.boxes.cls[0].cpu().detach().numpy()) , 'mask': r.masks.data[0].cpu().detach().numpy()}]
+    
+    tool_list = list(range(0, 7))
+    tti_list = list(range(8, 14))
 
-    classes = r.boxes.cls.cpu().numpy().astype(int)
-    masks = r.masks.data.cpu().numpy()
-    out = []
-    for cls_id, m, conf in zip(classes, masks, r.boxes.conf.cpu().numpy()):
-        out.append({'class': int(cls_id), 'mask': m,'score': float(conf)})
-    return out
+    
+    classes = r.boxes.cls
+    masks = r.masks.data
+    
+    tool_found, tti_found = found_objects(tool_list, tti_list, classes)
+
+    l = []
+    
+    if len(tool_found) == 0:
+        for idx in tti_found:
+            l.append({'class':int(r.boxes.cls[idx].cpu().detach().numpy()) , 'mask': r.masks.data[idx].cpu().detach().numpy()})
+        return l
+    
+    elif len(tti_found) == 0:
+
+        for idx in tool_found:
+            l.append({'class':int(r.boxes.cls[idx].cpu().detach().numpy()) , 'mask': r.masks.data[idx].cpu().detach().numpy()})
+        return l
+    
+    res = []
+    
+    for idx_tti in tti_found:
+        for idx_tool in tool_found:
+            # tissue_mask = masks[idx_tti].bool() & (~masks[idx_tool].bool())
+            # tool_mask = masks[idx_tool].bool()
+            
+            tissue_mask = masks[idx_tti]
+            tool_mask = masks[idx_tool]
+            
+            tti_dict = {'class': int(classes[idx_tti].cpu().detach().numpy()) , 'mask' : tissue_mask.int().cpu().detach().numpy()}
+            tool_dict = {'class': int(classes[idx_tool].cpu().detach().numpy()) , 'mask':  tool_mask.int().cpu().detach().numpy()}
+            
+            
+            
+            
+            already_has_tti = False
+            for elem in res:
+                if elem['class'] == tti_dict['class'] and np.array_equal(elem['mask'], tti_dict['mask']):
+                    already_has_tti = True
+                    break
+
+            if not already_has_tti:
+                res.append(tti_dict)
+
+          
+            already_has_tool = False
+            for elem in res:
+                if elem['class'] == tool_dict['class'] and np.array_equal(elem['mask'], tool_dict['mask']):
+                    already_has_tool = True
+                    break
+            if not already_has_tool:
+                res.append(tool_dict)
+
+    return res
 
 
 
@@ -112,7 +172,7 @@ def find_tool_tissue_pairs(detections: list[dict]):
     pairs = []
     for s in tools:
         for o in tissues:
-            pairs.append({'tool': s, 'tissue': o,'tissue_conf': o['score']})
+            pairs.append({'tool': s, 'tissue': o})
     return pairs
 
 def depth_treshold(image, yolo_model):
@@ -168,8 +228,7 @@ def depth_treshold(image, yolo_model):
             'tool': pair['tool'],
             'tissue': pair['tissue'],
             'tti_class': tti_class,
-            'tti_score': 1,
-            'conf': pair['tissue_conf']
+            'tti_score': 1
         })
 
     # Post-filter: per tool keep only the tissue with centroid closest to tool centroid
@@ -285,16 +344,29 @@ if __name__ == "__main__":
             color = (0, 220, 220)  # Green color in BGR
             cv2.rectangle(img_with_boxes, (x, y), (x + w, y + h), color, 2)
             
+            # Get tool class name
+            tool_class = tool_det['class']
+            tool_name = None
+            for name, class_id in INSTRUMENT_NAME_TO_ID.items():
+                if class_id == tool_class:
+                    tool_name = name
+                    break
+            if tool_name is None:
+                tool_name = f"Tool {tool_class}"
+            
             # Get tissue class name and draw text above the box
             tissue_class = tissue_det['class']
             # Find the class name from the class ID
-            class_name = None
+            tissue_name = None
             for name, class_id in TTI_NAME_TO_ID.items():
                 if class_id == tissue_class:
-                    class_name = name
+                    tissue_name = name
                     break
-            if class_name is None:
-                class_name = f"Class {tissue_class}"
+            if tissue_name is None:
+                tissue_name = f"Class {tissue_class}"
+            
+            # Combine tool and tissue names
+            class_name = f"{tool_name} - {tissue_name}"
             
             # Draw text above the bounding box
             font = cv2.FONT_HERSHEY_SIMPLEX
@@ -305,6 +377,9 @@ if __name__ == "__main__":
             # Get text size to draw background rectangle
             (text_width, text_height), baseline = cv2.getTextSize(class_name, font, font_scale, text_thickness)
             
+            # Get image dimensions
+            img_height, img_width = img_with_boxes.shape[:2]
+            
             # Check if text fits above the bounding box
             text_y_top = y - text_height - baseline - 5
             text_y_bottom = y
@@ -314,15 +389,24 @@ if __name__ == "__main__":
                 text_y_top = y + h + 5
                 text_y_bottom = y + h + text_height + baseline + 10
             
+            # Calculate initial text position
+            text_x = x + 2
+            
+            # Check if text goes out of bounds on the right
+            if text_x + text_width + 5 > img_width:
+                # Shift text to the left to fit within image bounds
+                text_x = img_width - text_width - 7
+                # Make sure it doesn't go negative
+                text_x = max(0, text_x)
+            
             # Draw background rectangle for text
             bg_color = (0, 220, 220)  # Cyan background
             cv2.rectangle(img_with_boxes, 
-                         (x, text_y_top),
-                         (x + text_width + 5, text_y_bottom),
+                         (text_x, text_y_top),
+                         (min(text_x + text_width + 5, img_width), text_y_bottom),
                          bg_color, -1)
             
             # Draw text on the background
-            text_x = x + 2
             text_y = text_y_top + text_height + baseline - 2
             cv2.putText(img_with_boxes, class_name, (text_x, text_y), font, font_scale, text_color, text_thickness)
         

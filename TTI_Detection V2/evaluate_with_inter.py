@@ -3,16 +3,24 @@ import re
 import json
 import cv2
 import numpy as np
-from PIL import Image
 import torch
-from torchvision.models import resnet18
+
+from models.VIT import ROIClassifierViT
 from transformers import pipeline
 from ultralytics import YOLO
 from draw_pipe_output import depth_treshold
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, confusion_matrix, balanced_accuracy_score
+from pipeline import end_to_end_pipeline
+import time
 
-TEST_VIDEOS_DIR  = "./video_dataset/videos/test/"
-TEST_LABELS_DIR  = "./video_dataset/labels/test/"
+import warnings
+import logging
+warnings.filterwarnings('ignore')
+logging.getLogger('transformers').setLevel(logging.ERROR)
+logging.getLogger('transformers.modeling_utils').setLevel(logging.ERROR)
+
+TEST_VIDEOS_DIR  = "./video_dataset/videos/val/"
+TEST_LABELS_DIR  = "./video_dataset/labels/val/"
 YOLO_WEIGHTS = "./runs/segment/train/weights/best.pt"
 TCN_WEIGHTS  = "./model_TCN_V4.pt"
 DEVICE       = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -182,7 +190,7 @@ def build_gt_pairs_dict(objs):
    
          
 
-def test_with_intersection():
+def test_with_intersection(with_vit : bool = False):
     """Test TTI detection using depth_treshold() for predictions.
     
     Evaluates each (tool_id, tti_id) pair from GT labels:
@@ -193,7 +201,13 @@ def test_with_intersection():
     """
     yolo = load_models()
     videos = [v for v in os.listdir(TEST_VIDEOS_DIR) if not v.startswith('.')]
-
+    
+    depth = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    tti_class = ROIClassifierViT(2)
+    tti_class.load_state_dict(torch.load('./models/ViT2.pt',map_location=device))
+    tti_class.to(device)
+    
     y_true = []
     y_pred = []
     total_frames = 0
@@ -204,6 +218,7 @@ def test_with_intersection():
     class_mismatch_errors = 0    # classes mismatch (pred vs GT)
 
     for vi, vid in enumerate(videos, 1):
+        print(f"[INFO] Processing video {vi}/{len(videos)}: {vid}")
         vpath = os.path.join(TEST_VIDEOS_DIR, vid)
         cap, fcount = _load_video(vpath)
         key = normalize(os.path.splitext(vid)[0])
@@ -235,7 +250,18 @@ def test_with_intersection():
 
             # Get predictions using depth_treshold
             try:
-                detections, tti_predictions = depth_treshold(frame_bgr, yolo)
+                if not with_vit:
+                    # time_pre = time.time()
+                    detections, tti_predictions = depth_treshold(frame_bgr, yolo)
+                    # time_post = time.time()
+                    # print(f"Depth estimation time: {time_post - time_pre:.2f} seconds")
+                else: 
+                
+                    time_pre = time.time()
+                    detections, tti_predictions = end_to_end_pipeline(frame_bgr, yolo, depth, tti_class, device)
+                    time_post = time.time()
+                    print(f"Depth estimation time: {time_post - time_pre:.2f} seconds")
+                    
                 
                 # Build predicted pairs dict: {(tool_id, tti_id): tti_class}
                 pred_pairs = {}
@@ -253,6 +279,8 @@ def test_with_intersection():
                         # Coppia con classi esatte trovata - confronta il valore TTI
                         pred_val = pred_pairs[key]
                         if pred_val != gt_val:
+                            y_true.append(1)
+                            y_pred.append(0)
                             tti_mismatch_errors += 1
                             # Visualizza e salva immagine con maschere in caso di mismatch TTI/no-TTI
                             try:
@@ -291,9 +319,7 @@ def test_with_intersection():
                             except Exception:
                                 pass
                     else:
-                        # Coppia con queste classi non predetta - errore nelle classi
-                        pred_val = 0  # Default a 0 (no interaction) per metriche
-                        class_mismatch_errors += 1
+                        pred_val = 0  
                         continue
                     
                     # y_true.append(gt_val)
@@ -307,8 +333,8 @@ def test_with_intersection():
                         # Coppia predetta ma non in GT -> errore di classi
                         class_mismatch_errors += 1
                         total_pairs += 1
-                        y_pred.append(0)   # Conta come errore (pred = interaction)
-                        y_true.append(1)   # GT dice: no interaction per questa coppia di classi
+                        y_pred.append(0)   
+                        y_true.append(1)   
 
             except Exception as e:
                 print(f"    [WARN] Video {vi} Frame {idx} error: {e}")
@@ -347,4 +373,4 @@ def test_with_intersection():
 
 
 if __name__ == "__main__":
-    test_with_intersection()
+    test_with_intersection(with_vit=True)
