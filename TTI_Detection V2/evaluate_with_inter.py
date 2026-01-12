@@ -273,7 +273,7 @@ def test_with_intersection(with_vit : bool = False):
             try:
                 if not with_vit:
                     # time_pre = time.time()
-                    detections, tti_predictions = depth_treshold(frame_bgr, yolo,depth_model=depth)
+                    detections, tti_predictions = depth_treshold(frame_bgr, yolo)
                     # time_post = time.time()
                     # print(f"Depth estimation time: {time_post - time_pre:.2f} seconds")
                 else: 
