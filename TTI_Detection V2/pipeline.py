@@ -174,7 +174,7 @@ def end_to_end_pipeline(image, yolo_model, depth_model, tti_classifier, device, 
         tissue_mask = pair['tissue']['mask']
         roi = extract_union_roi(image, tool_mask, tissue_mask, depth_map)
         if roi is None:
-            return [] ,[]
+            return None , None
         # Prepare input for ROI classifier
         roi_tensor = torch.from_numpy(roi).permute(2, 0, 1).unsqueeze(0).float() / 255.0
         roi_tensor = F.interpolate(roi_tensor, size=(224, 224), mode='bilinear', align_corners=False)

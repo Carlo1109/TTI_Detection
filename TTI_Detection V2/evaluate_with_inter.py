@@ -205,7 +205,7 @@ def test_with_intersection(with_vit : bool = False):
     depth = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     tti_class = ROIClassifierViT(2)
-    tti_class.load_state_dict(torch.load('./models/ViT2.pt',map_location=device))
+    tti_class.load_state_dict(torch.load('./models/ViT_no_depth.pt',map_location=device))
     tti_class.to(device)
     
     y_true = []
@@ -214,6 +214,21 @@ def test_with_intersection(with_vit : bool = False):
     processed_frames = 0
     total_pairs = 0
     predicted_pairs = 0
+    gt_val_0 = 0
+    bad_frames = []
+    
+    metrics = {
+        'gt_tti_0': 0,
+        'gt_tti_1': 0,
+        'pred_tti_0_in_gt_1': 0,
+        'pred_tti_1_in_gt_0': 0,
+        'pred_tti_1_in_gt_1': 0,
+        'pred_tti_0_in_gt_0': 0,
+        'pred_tti_0_no_gt': 0,
+    }
+        
+    
+    
     # Error counters
     tti_mismatch_errors = 0      # classes match, but TTI/no-TTI differs
     class_mismatch_errors = 0    # classes mismatch (pred vs GT)
@@ -235,6 +250,11 @@ def test_with_intersection(with_vit : bool = False):
         for idx_s, objs in labels.items():
             idx = int(idx_s)
             if idx < 0 or idx >= fcount:
+                continue
+            
+            skip_frames = np.load('bad_frames_vit_depth.npy')
+            # print(skip_frames)
+            if (vid, idx) in skip_frames:
                 continue
 
             total_frames += 1
@@ -259,7 +279,9 @@ def test_with_intersection(with_vit : bool = False):
                 else: 
                 
                     # time_pre = time.time()
-                    detections, tti_predictions = end_to_end_pipeline(frame_bgr, yolo, depth, tti_class, device)
+                    detections, tti_predictions = end_to_end_pipeline(frame_bgr, yolo, depth, tti_class, device,None)
+                    if tti_predictions is None and detections is None:
+                        bad_frames.append((vid, idx))
                     # time_post = time.time()
                     # print(f"Depth estimation time: {time_post - time_pre:.2f} seconds")
                     
@@ -275,10 +297,24 @@ def test_with_intersection(with_vit : bool = False):
                 
                 # Compare each GT pair
                 for key, gt_val in gt_pairs.items():
+                    if gt_val == 0:
+                        metrics['gt_tti_0'] += 1
+                    else:
+                        metrics['gt_tti_1'] += 1
+                        
                     total_pairs += 1
                     if key in pred_pairs:
-                        # Coppia con classi esatte trovata - confronta il valore TTI
                         pred_val = pred_pairs[key]
+                        if pred_val == 1 and gt_val == 1:
+                            metrics['pred_tti_1_in_gt_1'] += 1
+                        elif pred_val == 0 and gt_val == 1:
+                            metrics['pred_tti_0_in_gt_1'] += 1
+                        elif pred_val == 1 and gt_val == 0:
+                            metrics['pred_tti_1_in_gt_0'] += 1
+                        elif pred_val == 0 and gt_val == 0:
+                            metrics['pred_tti_0_in_gt_0'] += 1
+                            
+                        
                         if pred_val != gt_val:
                             y_true.append(1)
                             y_pred.append(0)
@@ -332,7 +368,8 @@ def test_with_intersection(with_vit : bool = False):
                 for key, pred_val in pred_pairs.items():
                     predicted_pairs += 1
                     if key not in gt_pairs:
-                        # Coppia predetta ma non in GT -> errore di classi
+                        if pred_val == 0:
+                            metrics['pred_tti_0_no_gt'] += 1
                         class_mismatch_errors += 1
                         y_pred.append(0)   
                         y_true.append(1)   
@@ -356,21 +393,24 @@ def test_with_intersection(with_vit : bool = False):
     bacc = balanced_accuracy_score(y_true, y_pred)
 
     print("\n" + "="*60)
-    print("TTI DETECTION RESULTS (Depth-based Intersection)")
+    print("TTI DETECTION RESULTS (Intersection NO Depth):")
     print("="*60)
     print(f"Total frames: {total_frames} | Processed frames: {processed_frames}")
     print(f"Samples (pairs): {len(y_true)} | Total pairs: {total_pairs}")
     print(f"Preicted pairs {predicted_pairs}")
     print(f"Errors: TTI/no-TTI mismatch = {tti_mismatch_errors}, Class mismatch = {class_mismatch_errors}")
-    print(f"  GT TTI=1: {sum(y_true)}")
-    print(f"  GT TTI=0: {len(y_true) - sum(y_true)}")
+    print("metrics:  ", metrics)
+    # np.save('bad_frames_vit_depth.npy', np.array(bad_frames))
+    # print(f"  GT TTI=1: {sum(y_true)}")
+    # print(f"  GT TTI=0: {len(y_true) - sum(y_true)}")
     print(f"\nAccuracy:  {acc:.4f}")
-    print(f"Precision: {prec:.4f}")
-    print(f"Recall:    {rec:.4f}")
-    print(f"F1 Score:  {f1:.4f}")
-    print(f"Balanced Accuracy: {bacc:.4f}")
-    print(f"\nConfusion Matrix:")
-    print("="*60)
+    # print(f"Precision: {prec:.4f}")
+    # print(f"Recall:    {rec:.4f}")
+    # print(f"F1 Score:  {f1:.4f}")
+    # print(f"Balanced Accuracy: {bacc:.4f}")
+    # print(f"\nConfusion Matrix:")
+    # print("="*60)
+    # print(f"GT TTI=0: {gt_val_0}")
 
 
 if __name__ == "__main__":

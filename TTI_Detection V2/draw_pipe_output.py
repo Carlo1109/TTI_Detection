@@ -213,6 +213,7 @@ def depth_treshold(image, yolo_model, depth_model = None):
             ).astype(bool)
 
 
+
         intersection = np.logical_and(tool_mask_resized, tissue_mask_resized).sum()
 
         tti = False
