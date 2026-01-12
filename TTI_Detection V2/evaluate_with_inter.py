@@ -213,6 +213,7 @@ def test_with_intersection(with_vit : bool = False):
     total_frames = 0
     processed_frames = 0
     total_pairs = 0
+    predicted_pairs = 0
     # Error counters
     tti_mismatch_errors = 0      # classes match, but TTI/no-TTI differs
     class_mismatch_errors = 0    # classes mismatch (pred vs GT)
@@ -252,15 +253,15 @@ def test_with_intersection(with_vit : bool = False):
             try:
                 if not with_vit:
                     # time_pre = time.time()
-                    detections, tti_predictions = depth_treshold(frame_bgr, yolo)
+                    detections, tti_predictions = depth_treshold(frame_bgr, yolo,depth_model=depth)
                     # time_post = time.time()
                     # print(f"Depth estimation time: {time_post - time_pre:.2f} seconds")
                 else: 
                 
-                    time_pre = time.time()
+                    # time_pre = time.time()
                     detections, tti_predictions = end_to_end_pipeline(frame_bgr, yolo, depth, tti_class, device)
-                    time_post = time.time()
-                    print(f"Depth estimation time: {time_post - time_pre:.2f} seconds")
+                    # time_post = time.time()
+                    # print(f"Depth estimation time: {time_post - time_pre:.2f} seconds")
                     
                 
                 # Build predicted pairs dict: {(tool_id, tti_id): tti_class}
@@ -327,12 +328,12 @@ def test_with_intersection(with_vit : bool = False):
                     y_true.append(1)
                     y_pred.append(1)
                 
-                # Conta anche falsi positivi: predizioni senza corrispondente GT
+                
                 for key, pred_val in pred_pairs.items():
+                    predicted_pairs += 1
                     if key not in gt_pairs:
                         # Coppia predetta ma non in GT -> errore di classi
                         class_mismatch_errors += 1
-                        total_pairs += 1
                         y_pred.append(0)   
                         y_true.append(1)   
 
@@ -358,7 +359,8 @@ def test_with_intersection(with_vit : bool = False):
     print("TTI DETECTION RESULTS (Depth-based Intersection)")
     print("="*60)
     print(f"Total frames: {total_frames} | Processed frames: {processed_frames}")
-    print(f"Samples (pairs): {len(y_true)} | Total predicted pairs: {total_pairs}")
+    print(f"Samples (pairs): {len(y_true)} | Total pairs: {total_pairs}")
+    print(f"Preicted pairs {predicted_pairs}")
     print(f"Errors: TTI/no-TTI mismatch = {tti_mismatch_errors}, Class mismatch = {class_mismatch_errors}")
     print(f"  GT TTI=1: {sum(y_true)}")
     print(f"  GT TTI=0: {len(y_true) - sum(y_true)}")
@@ -368,9 +370,8 @@ def test_with_intersection(with_vit : bool = False):
     print(f"F1 Score:  {f1:.4f}")
     print(f"Balanced Accuracy: {bacc:.4f}")
     print(f"\nConfusion Matrix:")
-    print(cm)
     print("="*60)
 
 
 if __name__ == "__main__":
-    test_with_intersection(with_vit=True)
+    test_with_intersection(with_vit=False)

@@ -150,7 +150,7 @@ def extract_union_roi(image, tool_mask, tissue_mask, depth_map=None):
 
     if depth_map is not None:
         depth_roi = depth_map[y:y+h, x:x+w]
-        roi = np.concatenate([roi, depth_roi[..., None]], axis=-1)  # add depth as extra channel
+        roi = np.concatenate([roi, depth_roi[..., None]], axis=-1)  
 
     merged_mask = cv2.bitwise_or(tool_mask, tissue_mask)
     merged_mask = merged_mask[y:y+h, x:x+w]
@@ -175,10 +175,12 @@ def find_tool_tissue_pairs(detections: list[dict]):
             pairs.append({'tool': s, 'tissue': o})
     return pairs
 
-def depth_treshold(image, yolo_model):
+def depth_treshold(image, yolo_model, depth_model = None):
   
     detections = yolo_inference(yolo_model, image)
     
+    if depth_model is not None:
+        depth_map = np.array(depth_model(Image.fromarray(image))["depth"])
    
     # Step 2: Pairing
     pairs = find_tool_tissue_pairs(detections)
@@ -216,7 +218,25 @@ def depth_treshold(image, yolo_model):
         tti = False
 
         if intersection > 0:
-            tti = True
+            if depth_model is not None:
+                tool_int = np.logical_and(intersection.astype(bool),tool_mask_resized.astype(bool))
+                tissue_int = np.logical_and(intersection.astype(bool),tissue_mask_resized.astype(bool))
+                
+                depth_tool_int = depth_map[tool_int.astype(bool)]
+                depth_tissue_int = depth_map[tissue_int.astype(bool)]
+                
+                #depth median
+                med_tool = np.mean(depth_tool_int)
+                med_tissue = np.mean(depth_tissue_int)
+                if np.isnan(med_tool) or np.isnan(med_tissue):
+                        continue
+
+                tolerance = 0.1
+                if np.abs(med_tool - med_tissue) <= tolerance:
+                    tti = True
+            else:
+                tti = True
+            
 
         if tti:
             tti_class = 1
