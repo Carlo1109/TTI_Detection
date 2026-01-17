@@ -10,7 +10,7 @@ class ROIClassifierViT(nn.Module):
         super().__init__()
         
         # Channel reduction layers - same as ResNet version
-        # self.first = nn.Conv2d(5, 4, kernel_size=1, stride=1, padding=0, bias=False)
+        self.first = nn.Conv2d(5, 4, kernel_size=1, stride=1, padding=0, bias=False)
         self.pre_conv = nn.Conv2d(4, 3, kernel_size=1, stride=1, padding=0, bias=False)
         
         # Vision Transformer backbone - using ViT-Base pretrained
@@ -23,7 +23,7 @@ class ROIClassifierViT(nn.Module):
         
     def forward(self, x):
         # Channel reduction: 5 -> 4 -> 3 channels
-        # x = self.first(x)
+        x = self.first(x)
         x = self.pre_conv(x)
         
         # ViT expects inputs in range [0, 1] and specific format
